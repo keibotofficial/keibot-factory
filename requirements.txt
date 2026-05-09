@@ -9,3 +9,4 @@ opencv-python-headless==4.8.1.78
 imageio==2.31.5
 imageio-ffmpeg==0.4.9
 psutil==5.9.5
+faster-whisper
