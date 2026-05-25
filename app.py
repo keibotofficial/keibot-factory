@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 import secrets
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session
 import requests
+from faster_whisper import WhisperModel
 
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
@@ -133,6 +134,8 @@ GALLERY_FOLDER_MAP = {
     'backgrounds':'backgrounds',
     'thumbnail':  'thumbnails',
     'thumbnails': 'thumbnails',
+    'font':       'fonts',
+    'fonts':      'fonts',
 }
 
 def resolve_folder(g_type: str) -> str:
@@ -223,14 +226,12 @@ def get_channel_folder(yt_id, sub):
     os.makedirs(path, exist_ok=True)
     return path
 
-# 🔥 FITUR 3: PENGAMBILAN MULTI-BACKGROUND 🔥
 def get_multi_backgrounds(yt_id, count=1):
     path = get_channel_folder(yt_id, "backgrounds")
     files = [os.path.join(path, f) for f in os.listdir(path) if f.lower().endswith(('.mp4', '.jpg', '.jpeg', '.png', '.gif', '.webp', '.mov'))]
     if not files: return []
     random.shuffle(files)
     
-    # Jika stok video kurang dari jumlah yang diminta, kita ulangi/perbanyak stoknya agar pas
     selected = []
     while len(selected) < count and files:
         for f in files:
@@ -339,7 +340,6 @@ class BackgroundManager:
     def get_frame(self):
         if self.static_bg is not None: return self.static_bg.copy()
         try: return cv2.resize(cv2.cvtColor(self.reader.get_next_data(), cv2.COLOR_RGB2BGR), (self.w, self.h))
-        # Jika video habis, akan otomatis lanjut ke video background berikutnya (Multi-background loop)
         except: self.idx = (self.idx + 1) % len(self.bg_paths); self.load_current(); return self.get_frame()
         
     def close(self):
@@ -352,7 +352,6 @@ class VisualEngine:
         self.col_part = (c_part[2], c_part[1], c_part[0])
         self.bar_h = None
         
-        # 🔥 KEMBALI KE GRADIEN HALUS 🔥
         self.grad = np.zeros((1000, 1, 3), dtype=np.uint8)
         for c in range(3): 
             self.grad[:, 0, c] = np.linspace(self.col_top[c], self.col_bot[c], 1000)
@@ -405,7 +404,6 @@ class VisualEngine:
                 y1 = b_y - height
                 y2 = b_y
             
-            # Pengaman batas layar agar tidak error
             x1_safe = max(0, min(w, x1))
             x2_safe = max(0, min(w, x2))
             y1_safe = max(0, min(h, y1))
@@ -415,17 +413,12 @@ class VisualEngine:
             h_safe = y2_safe - y1_safe
             
             if w_safe > 0 and h_safe > 0:
-                # 🔥 GRADIEN DINAMIS: Dipress/Ditarik menyesuaikan TINGGI BAR SAAT INI 🔥
                 bar_grad = cv2.resize(self.grad, (bar_w, height))
-                
-                # Crop jika bar kepanjangan melewati batas layar
                 y_offset = y1_safe - y1
                 x_offset = x1_safe - x1
                 bar_grad_cropped = bar_grad[y_offset : y_offset + h_safe, x_offset : x_offset + w_safe]
-                
                 frame[y1_safe:y2_safe, x1_safe:x2_safe] = bar_grad_cropped
                 
-        # --- 🔥 PARTIKEL PREMIUM 🔥 ---
         if p_amt > 0:
             if is_hit and vol > 1.5:
                  for _ in range(p_amt):
@@ -450,6 +443,103 @@ class VisualEngine:
 
 def hex_to_rgb(h): return tuple(int(str(h).lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
 
+# ==========================================
+# 🔥 FUNGSI AI WHISPER (KILAT & AKURAT) 🔥
+# ==========================================
+def buat_auto_subtitle_batch(track_schedule, ass_path, font, size, c_pri, c_sec, c_out, pos_y_pct, vid_w=1280, vid_h=720):
+    print(f"🤖 [AI Whisper] Meracik subtitle (Sistem Chunking Per Lagu)...")
+    
+    # Model "base" sangat cukup untuk kecepatan tinggi di VPS
+    model = WhisperModel("base", device="cpu", compute_type="int8")
+
+    def hex2ass(h):
+        h = str(h).lstrip('#').upper()
+        if len(h) < 6: h = h.ljust(6, '0')
+        if len(h) > 6: h = h[:6]
+        try: int(h, 16)
+        except ValueError: h = 'FFFFFF'
+        r, g, b = h[0:2], h[2:4], h[4:6]
+        return f"&H00{b}{g}{r}"
+
+    def fmt_time(seconds):
+        seconds = max(0.0, float(seconds))
+        h  = int(seconds // 3600)
+        m  = int((seconds % 3600) // 60)
+        s  = seconds % 60
+        return f"{h:01d}:{m:02d}:{s:05.2f}"
+
+    ass_pri = hex2ass(c_pri)
+    ass_out = hex2ass(c_out)
+
+    margin_v = int((1.0 - float(pos_y_pct) / 100.0) * vid_h)
+    margin_v = max(10, min(margin_v, vid_h - 50))
+
+    with open(ass_path, "w", encoding="utf-8-sig") as f:
+        f.write("[Script Info]\nScriptType: v4.00+\n")
+        f.write(f"PlayResX: {vid_w}\nPlayResY: {vid_h}\nWrapStyle: 1\nScaledBorderAndShadow: yes\n\n")
+        f.write("[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n")
+        f.write(
+            f"Style: Default,{font},{size},"
+            f"{ass_pri},{ass_pri},{ass_out},&H80000000,"
+            f"-1,0,0,0,100,100,0,0,1,3,1,"
+            f"2,60,60,{margin_v},1\n\n"
+        )
+        f.write("[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
+
+        written = 0
+        
+        for track in track_schedule:
+            offset_waktu = track['start'] 
+            audio_asli = track['path']
+            print(f"   -> Transkripsi: {track['title']} (Mulai detik ke-{offset_waktu:.1f})")
+            
+            try:
+                segments_gen, info = model.transcribe(
+                    audio_asli,
+                    language="id",                 
+                    beam_size=5,                   
+                    word_timestamps=False,         
+                    condition_on_previous_text=False,
+                    
+                    # 🔥 KUNCI ANTI-MISSING & ANTI-HALUSINASI 🔥
+                    no_speech_threshold=0.6,       
+                    log_prob_threshold=-1.0,       
+                    vad_filter=True,               
+                    vad_parameters=dict(
+                        min_silence_duration_ms=2000, 
+                        speech_pad_ms=500             
+                    ),
+                    initial_prompt="Lirik:"
+                )
+                segments = list(segments_gen)
+            except Exception as e:
+                print(f"      [!] Gagal mendengarkan lagu ini: {e}")
+                continue
+                
+            if not segments:
+                print(f"      [!] Lagu full instrumen, skip...")
+                continue
+                
+            for seg in segments:
+                if seg.no_speech_prob > 0.6: continue
+                if (seg.end - seg.start) < 0.5: continue
+
+                start_str = fmt_time(seg.start + offset_waktu)
+                end_str   = fmt_time(seg.end + offset_waktu)
+
+                cleaned_text = seg.text.strip()
+                if not cleaned_text: continue
+
+                f.write(f"Dialogue: 0,{start_str},{end_str},Default,,0,0,0,,{cleaned_text}\n")
+                written += 1
+
+    if not os.path.exists(ass_path) or written == 0:
+        print(f"   [!] File ASS kosong.")
+        
+    print(f"✅ [AI Whisper] Chunking Selesai! Subtitle tergabung sempurna.")
+    return ass_path
+
+
 def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg):
     w, h = 1280, 720; fps = 30; total_f = int(duration * fps)
     c_bot = hex_to_rgb(cfg.get('color_bot', '#10b981'))
@@ -459,7 +549,48 @@ def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg)
     vis = VisualEngine(c_bot, c_top, c_part)
     bg = BackgroundManager(bg_paths, w, h)
     audio = AudioBrain(); audio.load(audio_path)
-    cmd = [get_ffmpeg_path(), '-y', '-threads', '2', '-f', 'rawvideo', '-vcodec', 'rawvideo', '-s', f'{w}x{h}', '-pix_fmt', 'bgr24', '-r', str(fps), '-i', '-', '-i', audio_path, '-t', str(duration), '-c:v', 'libx264', '-preset', 'fast', '-pix_fmt', 'yuv420p', output_path]
+    
+    file_ass = os.path.join(BASE_UPLOAD, f"lirik_sementara_{task_id}.ass")
+    safe_ass_path = os.path.abspath(file_ass).replace('\\', '/').replace(':', '\\:')
+    
+    use_subtitle = cfg.get('use_auto_subtitle', False)
+    
+    if use_subtitle and 'track_schedule' in cfg:
+        s_font = cfg.get('sub_font', 'Arial')
+        s_size = cfg.get('sub_size', 48)
+        s_pos_y = cfg.get('sub_pos_y', 15)
+        c_pri = cfg.get('sub_color', '#00e5ff')
+        c_sec = cfg.get('sub_sec_color', '#ffffff')
+        c_out = cfg.get('sub_outline', '#000000')
+
+        with db_lock:
+            for d in active_tasks:
+                if d['id'] == task_id: d['status'] = "AI Mencatat Lirik per Lagu... 🤖📝"
+        save_tasks_db()
+        
+        buat_auto_subtitle_batch(cfg['track_schedule'], file_ass, s_font, s_size, c_pri, c_sec, c_out, s_pos_y, w, h)
+        
+        with db_lock:
+            for d in active_tasks:
+                if d['id'] == task_id: d['status'] = "Rendering Visual & Subtitle... ⚡"
+        save_tasks_db()
+
+    cmd = [
+        get_ffmpeg_path(), '-y', '-threads', '2', 
+        '-f', 'rawvideo', '-vcodec', 'rawvideo', '-s', f'{w}x{h}', '-pix_fmt', 'bgr24', '-r', str(fps), 
+        '-i', '-', 
+        '-i', audio_path, 
+        '-t', str(duration)
+    ]
+    
+    if use_subtitle and os.path.exists(file_ass) and os.path.getsize(file_ass) > 100:
+        fonts_dir = os.path.join(BASE_UPLOAD, str(cfg.get('yt_id', '')), "fonts")
+        os.makedirs(fonts_dir, exist_ok=True)
+        safe_fonts_dir = os.path.abspath(fonts_dir).replace('\\', '/').replace(':', '\\:')
+        cmd.extend(['-vf', f"ass='{safe_ass_path}':fontsdir='{safe_fonts_dir}'"])
+        
+    cmd.extend(['-c:v', 'libx264', '-preset', 'fast', '-pix_fmt', 'yuv420p', output_path])
+    
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     try:
@@ -467,16 +598,11 @@ def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg)
             if stop_flags.get(task_id):
                 raise Exception("Dibatalkan")
                 
-            # Menangkap is_hit dari AudioBrain
             v, is_hit, bars = audio.get_data(f/fps, bar_c)
-            # Mengirimkan is_hit ke proses gambar
             frame = vis.process(bg.get_frame(), v, is_hit, bars, cfg)
 
-            # --- 🔥 INJEKSI FLOATING CARD KELAS DEWA (DYNAMIC TITLE) 🔥 ---
             if cfg.get('use_floating_card', False) and 'track_schedule' in cfg:
                 sec = f / fps
-                
-                # Cari lagu apa yang jadwalnya sedang main di detik ini
                 current_track = None
                 for track in cfg['track_schedule']:
                     if track['start'] <= sec < track['end']:
@@ -484,33 +610,22 @@ def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg)
                         break
                 
                 if current_track:
-                    # Hitung waktu berjalan sejak lagu INI dimulai
                     t = sec - current_track['start'] 
-                    
                     if t < 10.0:
-                        # Animasi masuk (1 dtk pertama) dan animasi keluar (1 dtk terakhir)
                         alpha = (t * 0.85) if t < 1.0 else ((10.0 - t) * 0.85 if t > 9.0 else 0.85)
-                        
                         if alpha > 0.05:
                             cw, ch = 500, 100
                             x, y = 40, h - ch - 40
-                            
                             roi = frame[y:y+ch, x:x+cw]
                             overlay = roi.copy()
-                            
                             cv2.rectangle(overlay, (0, 0), (cw, ch), (30, 20, 15), -1)
                             cv2.rectangle(overlay, (15, 15), (85, 85), (60, 200, 80), -1)
-                            
-                            # 🔥 FITUR 1: UPDATE TEKS NAMA CHANNEL 🔥
                             card_title = current_track['title']
                             ch_name = cfg.get('channel_name', 'KeiBot FM')
-                            
                             cv2.putText(overlay, card_title[:35], (105, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
                             cv2.putText(overlay, f"Now Playing . {ch_name}", (105, 75), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180, 180, 180), 1, cv2.LINE_AA)
                             cv2.putText(overlay, "J", (36, 65), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 3, cv2.LINE_AA)
-                            
                             cv2.addWeighted(overlay, alpha, roi, 1 - alpha, 0, roi)
-            # --- END INJEKSI ---
 
             proc.stdin.write(frame.tobytes())
             
@@ -521,6 +636,10 @@ def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg)
         raise e
         
     proc.stdin.close(); proc.wait(); bg.close()
+    
+    if use_subtitle and os.path.exists(file_ass):
+        try: os.remove(file_ass)
+        except: pass
 
 # ==========================================
 # 🚀 BACKGROUND WORKER: OTO-LOOP ULTIMATE
@@ -571,8 +690,10 @@ def background_worker():
                     
                     track_schedule.append({
                         'title': title,
+                        'path': safe_path, 
                         'start': current_sec,
-                        'end': current_sec + dur
+                        'end': current_sec + dur,
+                        'duration': dur
                     })
                     current_sec += dur
 
@@ -586,11 +707,9 @@ def background_worker():
             
             if base_duration_sec <= 0: raise Exception("Durasi audio tidak valid!")
 
-            # 🔥 MENGAMBIL NAMA CHANNEL UNTUK FLOATING CARD 🔥
             channel_data = next((c for c in database_channel if c['yt_id'] == yt_id), None)
             ch_name = channel_data['name'] if channel_data else "KeiBot FM"
 
-            # 🔥 PENGAMBILAN MULTI BACKGROUND BERDASARKAN INPUT UI 🔥
             bg_count = int(task.get('bg_count', 1))
             bg_paths = get_multi_backgrounds(yt_id, count=bg_count)
             if not bg_paths: raise Exception("Gallery Background Kosong!")
@@ -602,7 +721,16 @@ def background_worker():
             if not isinstance(preset, dict):
                 preset = {"color_bot": "#00d4ff", "color_top": "#7c5cfc", "color_part": "#ffffff", "pos_x": 50, "pos_y": 85, "width_pct": 60, "max_height": 40, "idle_height": 5, "bar_count": 64, "reactivity": 0.66, "gravity": 0.08, "spacing": 3, "part_amount": 3, "part_speed": 1.0}
 
+            preset['yt_id'] = yt_id 
             preset['use_floating_card'] = task.get('use_floating_card', False)
+            preset['use_auto_subtitle'] = task.get('use_auto_subtitle', False)
+            preset['sub_font'] = task.get('sub_font', 'Arial')
+            preset['sub_size'] = task.get('sub_size', 48)
+            preset['sub_pos_y'] = task.get('sub_pos_y', 15)
+            preset['sub_color'] = task.get('sub_color', '#00e5ff')
+            preset['sub_sec_color'] = task.get('sub_sec_color', '#ffffff')
+            preset['sub_outline'] = task.get('sub_outline', '#000000') 
+            
             preset['track_schedule'] = track_schedule
             preset['channel_name'] = ch_name
 
@@ -615,7 +743,6 @@ def background_worker():
                     if d['id'] == task_id: d['status'] = "Rendering Base FFmpeg... ⚡"
             save_tasks_db()
 
-            # PERHATIKAN: Kita melemparkan KUMPULAN Video (bg_paths) ke dalam mesin cetak
             render_video_core(task_id, base_audio, bg_paths, base_video, base_duration_sec, preset)
             if stop_flags.get(task_id): raise Exception("Dibatalkan")
 
@@ -647,15 +774,19 @@ def background_worker():
                     get_ffmpeg_path(), '-y', '-i', base_video, '-c', 'copy', '-t', str(target_sec), final_video
                 ], check=True)
 
+            # 🔥 SISTEM SMART ERROR DETECTOR 🔥
             if channel_data:
                 creds_list = channel_data.get('creds_list', [channel_data.get('creds_json')])
                 upload_berhasil = False
-                pesan_error = ""
+                pesan_error = "Token API Tidak Ditemukan/Kosong!" 
+                
                 for index_kunci, cred_str in enumerate(creds_list):
                     if not cred_str: continue
                     try:
                         creds = Credentials.from_authorized_user_info(json.loads(cred_str))
-                        if creds.expired and creds.refresh_token: creds.refresh(Request())
+                        if creds.expired and creds.refresh_token: 
+                            creds.refresh(Request())
+                            
                         youtube = build('youtube', 'v3', credentials=creds)
                         try: sch_obj = datetime.strptime(task['publish_date'], "%Y-%m-%d %H:%M")
                         except: raise Exception("Format tanggal salah")
@@ -701,18 +832,35 @@ def background_worker():
                         move_to_history(task_id, f"Tayang! ✅ <a href='https://youtu.be/{video_id}' target='_blank'>[Lihat]</a>")
                         upload_berhasil = True
                         break
+                        
                     except HttpError as e:
-                        if e.resp.status == 403 and "quotaExceeded" in str(e):
-                            pesan_error = f"Limit API Key {index_kunci+1} Habis!"
-                            continue
+                        try:
+                            err_info = json.loads(e.content.decode('utf-8'))
+                            reason = err_info['error']['errors'][0]['reason']
+                        except:
+                            reason = str(e)
+                            
+                        if "quotaExceeded" in reason:
+                            pesan_error = f"Limit Kuota Harian API Habis!"
+                            continue 
+                        elif "uploadLimitExceeded" in reason:
+                            pesan_error = "Limit Upload Harian Channel Tercapai!"
+                            break
                         else:
-                            pesan_error = str(e)
+                            pesan_error = f"Ditolak YT: {reason}"
                             break
                     except Exception as e:
-                        pesan_error = str(e)
+                        err_str = str(e).lower()
+                        if "invalid_grant" in err_str or "expired" in err_str or "revoked" in err_str:
+                            pesan_error = "Sesi Kedaluwarsa (Tautkan Ulang!)"
+                        elif "timeout" in err_str or "connection" in err_str or "broken" in err_str:
+                            pesan_error = "Koneksi VPS Putus/Timeout"
+                        else:
+                            pesan_error = f"Error: {str(e)[:40]}"
                         break
+                        
                 if not upload_berhasil:
-                    raise Exception(f"Gagal Upload: {pesan_error}")
+                    raise Exception(pesan_error)
             else:
                 move_to_history(task_id, f"Render Selesai ✅ <a href='/static/final_{task_id}.mp4' target='_blank'>[Download]</a>")
         except Exception as e:
@@ -832,22 +980,22 @@ def delete_preset():
         return jsonify({"status": "error", "message": str(e)})
 
 # ============================================================
-# 🖼️ GALLERY ENDPOINTS
+# 🖼️ GALLERY ENDPOINTS (DI-UPDATE UNTUK FONTS)
 # ============================================================
 
 @app.route('/api/get_asset_counts')
 def get_asset_counts():
     yt_id = request.args.get('yt_id')
-    if not yt_id: return jsonify({"audios": 0, "backgrounds": 0, "thumbnails": 0})
+    if not yt_id: return jsonify({"audios": 0, "backgrounds": 0, "thumbnails": 0, "fonts": 0})
     def count_files(sub):
         path = get_channel_folder(yt_id, sub)
         return len([f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))])
-    return jsonify({"audios": count_files("audios"), "backgrounds": count_files("backgrounds"), "thumbnails": count_files("thumbnails")})
+    return jsonify({"audios": count_files("audios"), "backgrounds": count_files("backgrounds"), "thumbnails": count_files("thumbnails"), "fonts": count_files("fonts")})
 
 @app.route('/api/get_gallery', methods=['GET'])
 def get_gallery():
     yt_id = request.args.get('yt_id')
-    if not yt_id: return jsonify({"audio": [], "background": [], "thumbnails": []})
+    if not yt_id: return jsonify({"audio": [], "background": [], "thumbnails": [], "fonts": []})
     def get_files_data(sub):
         path = get_channel_folder(yt_id, sub)
         res = []
@@ -862,6 +1010,7 @@ def get_gallery():
         "audio":      get_files_data("audios"),
         "background": get_files_data("backgrounds"),
         "thumbnails": get_files_data("thumbnails"),
+        "fonts":      get_files_data("fonts"),
     })
 
 @app.route('/api/upload_gallery', methods=['POST'])
@@ -1093,12 +1242,19 @@ def batch_create():
             "id": t_id, "yt_id": yt_id, "title": titles[i] if i < len(titles) else f"Auto Video #{i+1}",
             "publish_date": v_date.strftime('%Y-%m-%d %H:%M'),
             "mp3_per_video": data.get('mp3_per_video', 5), 
-            "bg_count": data.get('bg_count', 1), # <-- Fitur Multi-Background
+            "bg_count": data.get('bg_count', 1), 
             "target_duration_hours": vid_duration,
             "vis_mode": data.get('vis_mode'), "vis_preset": data.get('vis_preset'),
             "vis_presets_allowed": data.get('vis_presets_allowed', []), "description": data.get('description', ''),
             "tags": data.get('tags', ''), "privacy": data.get('privacy', 'public'), "playlist_id": data.get('playlist_id', ''),
-            "use_floating_card": data.get('use_floating_card', False) 
+            "use_floating_card": data.get('use_floating_card', False),
+            "use_auto_subtitle": data.get('use_auto_subtitle', False),
+            "sub_font": data.get('sub_font', 'Arial'),
+            "sub_size": data.get('sub_size', 48),
+            "sub_pos_y": data.get('sub_pos_y', 15),
+            "sub_color": data.get('sub_color', '#00e5ff'),
+            "sub_sec_color": data.get('sub_sec_color', '#ffffff'),
+            "sub_outline": data.get('sub_outline', '#000000') 
         }
         with db_lock:
             active_tasks.append({"id": t_id, "title": blueprint['title'], "time": blueprint['publish_date'], "status": "In Factory Queue ⚙️", "type": "📺 VOD"})
