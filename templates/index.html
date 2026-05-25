@@ -179,7 +179,6 @@ body::before {
 /* ════════ MAIN ════════ */
 .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; z-index: 1; }
 
-/* topbar */
 .topbar {
   padding: 12px 26px;
   border-bottom: 1px solid var(--border);
@@ -205,10 +204,8 @@ body::before {
 .sm-lbl { font-size: 8px; color: var(--muted); letter-spacing: .1em; margin-bottom: 1px; }
 .sm-val { font-size: 12px; font-weight: 700; }
 
-/* content */
 .content { flex: 1; overflow-y: auto; padding: 22px 26px; }
 
-/* ════════ PANELS ════════ */
 .panel { display: none; }
 .panel.active { display: block; animation: up .22s ease-out; }
 @keyframes up { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
@@ -258,8 +255,7 @@ body::before {
 .p-green { background:rgba(0,232,135,.1); color:var(--green); border:1px solid rgba(0,232,135,.2); }
 .p-red { background:rgba(255,77,109,.1); color:var(--accent2); border:1px solid rgba(255,77,109,.2); }
 .p-yellow { background:rgba(255,201,77,.1); color:var(--yellow); border:1px solid rgba(255,201,77,.2); }
-.p-purple { background:rgba(124,92,252,.1); color:var(--accent3); border:1px solid rgba(124,92,252,.2); }
-.p-muted { background:rgba(58,84,112,.12); color:var(--muted); border:1px solid var(--border); }
+.p-muted { background:rgba(58,84,112,.1); color:var(--text2); border:1px solid rgba(58,84,112,.2); }
 
 .tbl { width:100%; border-collapse:collapse; font-size:12px; }
 .tbl th { font-family:var(--font-m); font-size:9px; color:var(--muted); letter-spacing:.12em; text-align:left; padding:0 0 10px; border-bottom:1px solid var(--border); }
@@ -284,12 +280,6 @@ body::before {
 .content input:focus,
 .content select:focus,
 .content textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,212,255,.07); }
-
-#api-form input[type=file] {
-  padding:8px 10px; background:var(--card2); border:1px dashed var(--border2);
-  cursor:pointer; font-family:var(--font-d); font-size:11px; color:var(--text2);
-  border-radius:8px; width:auto; flex:1; min-width:200px;
-}
 
 input[type=file] { padding:8px 10px; background:var(--card2); border:1px dashed var(--border2); cursor:pointer; font-family:var(--font-d); font-size:11px; color:var(--text2); border-radius:8px; width:100%; }
 input[type=range] { -webkit-appearance:none; appearance:none; width:100%; height:4px; background:var(--border); border-radius:2px; outline:none; }
@@ -317,37 +307,16 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
 .gtab.active,.gtab:hover { background:var(--accent-dim); color:var(--accent); border-color:rgba(0,212,255,.2); }
 
 .gallery-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; }
-.gitem {
-  background:var(--card2); border:1px solid var(--border);
-  border-radius:var(--r); overflow:hidden; cursor:pointer;
-  transition:all .18s; position:relative;
-}
+.gitem { background:var(--card2); border:1px solid var(--border); border-radius:var(--r); overflow:hidden; cursor:pointer; transition:all .18s; position:relative; }
 .gitem:hover { border-color:var(--accent); transform:translateY(-2px); }
-.gitem-thumb {
-  width:100%; aspect-ratio:1;
-  display:grid; place-items:center;
-  font-size:28px;
-  background:linear-gradient(135deg, var(--card), var(--border));
-  position:relative;
-}
+.gitem-thumb { width:100%; aspect-ratio:1; display:grid; place-items:center; font-size:28px; background:linear-gradient(135deg, var(--card), var(--border)); position:relative; }
 .gitem-thumb.vid { aspect-ratio:16/9; }
-.gitem-overlay {
-  position:absolute; inset:0;
-  background:rgba(0,0,0,0); display:grid; place-items:center;
-  opacity:0; transition:.15s; font-size:18px;
-}
+.gitem-overlay { position:absolute; inset:0; background:rgba(0,0,0,0); display:grid; place-items:center; opacity:0; transition:.15s; font-size:18px; }
 .gitem:hover .gitem-overlay { opacity:1; background:rgba(0,0,0,.45); }
 .gitem-info { padding:8px 10px; }
 .gitem-name { font-size:10px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
 .gitem-meta { font-family:var(--font-m); font-size:9px; color:var(--muted); }
-.gitem-del {
-  position:absolute; top:5px; right:5px;
-  width:20px; height:20px;
-  background:rgba(255,77,109,.8); border:none;
-  border-radius:4px; color:#fff; font-size:10px;
-  cursor:pointer; display:none; place-items:center;
-  font-weight:700; line-height:1;
-}
+.gitem-del { position:absolute; top:5px; right:5px; width:20px; height:20px; background:rgba(255,77,109,.8); border:none; border-radius:4px; color:#fff; font-size:10px; cursor:pointer; display:none; place-items:center; font-weight:700; line-height:1; }
 .gitem:hover .gitem-del { display:grid; }
 
 .upload-zone { border:2px dashed var(--border2); border-radius:var(--r); padding:28px; text-align:center; cursor:pointer; transition:.15s; background:var(--card2); }
@@ -398,32 +367,9 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
 .cancel-btn { background:rgba(58,84,112,.12); color:var(--muted); border:1px solid var(--border); padding:6px 12px; border-radius:7px; font-family:var(--font-d); font-size:11px; font-weight:700; cursor:pointer; transition:.15s; }
 .cancel-btn:hover { border-color:var(--accent2); color:var(--accent2); }
 
-.settings-wrap { display:grid; grid-template-columns:180px 1fr; gap:16px; }
-.snav { display:flex; flex-direction:column; gap:3px; }
-.snav-item { padding:8px 12px; border-radius:8px; font-size:12px; font-weight:600; color:var(--muted); cursor:pointer; border:1px solid transparent; transition:.15s; }
-.snav-item.active { background:var(--accent-dim); color:var(--accent); border-color:rgba(0,212,255,.2); }
-.snav-item:hover:not(.active) { background:var(--card); border-color:var(--border); color:var(--text); }
-
 .ch-connected { display:flex; align-items:center; gap:12px; background:rgba(0,232,135,.04); border:1px solid rgba(0,232,135,.15); border-radius:var(--r); padding:14px; margin-bottom:12px; }
 .ch-con-av { width:42px; height:42px; border-radius:50%; overflow:hidden; flex-shrink:0; background:linear-gradient(135deg,var(--accent2),var(--accent3)); display:grid; place-items:center; font-size:18px; font-weight:800; color:#fff; }
 .ch-con-av img { width:100%; height:100%; object-fit:cover; }
-
-.modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.7); backdrop-filter:blur(4px); z-index:100; display:none; place-items:center; }
-.modal-bg.open { display:grid; }
-.modal { background:var(--surface); border:1px solid var(--border2); border-radius:var(--r2); width:540px; max-height:85vh; overflow-y:auto; animation:mup .2s ease-out; }
-@keyframes mup { from{opacity:0;transform:scale(.95) translateY(10px)} to{opacity:1;transform:scale(1) translateY(0)} }
-.modal-head { padding:18px 22px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
-.modal-title { font-size:15px; font-weight:700; }
-.modal-body { padding:20px 22px; }
-.modal-foot { padding:14px 22px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:8px; }
-.close-btn { width:26px; height:26px; border-radius:6px; background:transparent; border:1px solid var(--border); color:var(--muted); cursor:pointer; display:grid; place-items:center; font-size:13px; transition:.15s; }
-.close-btn:hover { border-color:var(--accent2); color:var(--accent2); }
-
-.gen-title-item { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border-radius:7px; background:var(--card2); border:1px solid var(--border); margin-bottom:6px; transition:.12s; }
-.gen-title-item:hover { border-color:var(--border2); }
-.gen-title-text { font-size:12px; font-weight:600; flex:1; }
-.gen-title-use { font-size:10px; color:var(--accent); cursor:pointer; padding:3px 8px; border-radius:5px; transition:.12px; border:1px solid rgba(0,212,255,.2); }
-.gen-title-use:hover { background:var(--accent); color:#000; }
 
 .toast-wrap { position:fixed; bottom:24px; right:24px; z-index:200; display:flex; flex-direction:column; gap:8px; }
 .toast { background:var(--card2); border:1px solid var(--border2); border-radius:var(--r); padding:12px 16px; font-size:12px; font-weight:600; min-width:240px; max-width:320px; display:flex; align-items:center; gap:10px; animation:tin .25s ease-out; box-shadow:0 8px 24px rgba(0,0,0,.4); }
@@ -435,10 +381,10 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
 .preview-container {
   position: relative;
   width: 100%;
-  max-width: 800px; /* Membatasi agar tidak terlalu raksasa di layar monitor besar */
-  margin: 0 auto 16px auto; /* Membuat posisinya persis di tengah */
-  aspect-ratio: 16 / 9; /* 🔥 INI KUNCI UTAMANYA: Mengunci rasio persis seperti video YouTube */
-  height: auto; /* Membiarkan tinggi menyesuaikan otomatis */
+  max-width: 800px;
+  margin: 0 auto 16px auto;
+  aspect-ratio: 16 / 9;
+  height: auto;
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -452,21 +398,17 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
   position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);
 }
 #preset_canvas {
-  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;
 }
 
 /* ════════ MOBILE RESPONSIVE & BOTTOM NAV ════════ */
 @media (max-width: 768px) {
-  /* Sembunyikan sidebar Desktop secara total */
   .sidebar { display: none !important; }
   .gitem-del { display: grid !important; opacity: 1 !important; }
-  /* Beri ruang kosong di bawah agar konten tidak tertutup menu */
   .main { width: 100%; padding-bottom: 70px; }
   .content { padding: 16px 12px; }
   .topbar { padding: 12px; }
   .tb-right { display: none; }
-  
-  /* Kolom jadi lurus ke bawah */
   .stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px; }
   .g2, .g3, .g4, .g21 { grid-template-columns: 1fr !important; gap: 12px; }
   .sh { flex-direction: column; align-items: flex-start; gap: 10px; }
@@ -475,10 +417,8 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
   .gallery-tabs { flex-wrap: wrap; }
   .step-indicator { flex-wrap: wrap; gap: 10px; }
   .step-line { display: none; }
-  .modal { width: 95%; margin: 10px; }
   .card-head > div:last-child { width: 100%; display: flex; flex-wrap: wrap; justify-content: flex-start; }
 
-  /* ── DESAIN BOTTOM NAVIGATION BAR ── */
   .bottom-nav {
     position: fixed; bottom: 0; left: 0; right: 0;
     height: 60px; background: rgba(9,13,20,.95); backdrop-filter: blur(10px);
@@ -506,7 +446,7 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
   }
 }
 @media (min-width: 769px) { 
-  .bottom-nav { display: none; } /* Sembunyikan menu bawah di Laptop */
+  .bottom-nav { display: none; }
 }
 </style>
 </head>
@@ -542,7 +482,6 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
       </div>
       <a href="/logout" style="color:var(--accent2); text-decoration:none; font-size:16px; margin-left:5px; cursor:pointer;" title="Kunci Sistem">⏻</a>
     </div>
-  </div>
   </div>
 </aside>
 
@@ -631,7 +570,7 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
       </div>
 
       <div class="upload-zone" id="gallery-drop-zone" onclick="document.getElementById('gallery-file-input').click()">
-        <input type="file" id="gallery-file-input" multiple onchange="handleGalleryUpload(event)">
+        <input type="file" id="gallery-file-input" multiple onchange="handleGalleryUpload(event)" accept=".mp3,.wav">
         <div class="uz-icon">⬆</div>
         <div class="uz-text">Upload File ke Gallery</div>
         <div class="uz-sub" id="gallery-accept-hint">Accepted: .mp3 .wav</div>
@@ -832,6 +771,7 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
                 <option value="random">🎲 Random Acak dari Preset Tersimpan</option>
               </select>
             </div>
+            
             <div class="fg" style="margin-bottom:0; justify-content:flex-end;">
               <label style="display:flex;align-items:center;gap:8px;background:var(--card2);border:1px solid var(--border);padding:10px;border-radius:8px;cursor:pointer;color:var(--text);">
                 <input type="checkbox" id="bc-use-floating-card" checked style="width:16px;height:16px;accent-color:var(--accent);">
@@ -842,7 +782,7 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
 
           <div id="vis-manual-wrap">
             <div style="display:flex; gap:8px; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <div style="font-size:11px; font-weight:700; color:var(--text); letter-spacing:.08em;">LIVE PREVIEW BACKGROUND DARI GALLERY</div>
+                <div style="font-size:11px; font-weight:700; color:var(--text); letter-spacing:.08em;">LIVE PREVIEW VISUALIZER</div>
             </div>
             
             <div class="preview-container" id="preview-container">
@@ -1059,11 +999,10 @@ const PAGE_META = {
 function go(id, el) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.bnav-item').forEach(b => b.classList.remove('active')); // Reset menu HP
+  document.querySelectorAll('.bnav-item').forEach(b => b.classList.remove('active'));
 
   document.getElementById('panel-' + id).classList.add('active');
   
-  // Nyalakan tombol menu Desktop & HP
   if (document.getElementById('nb-' + id)) document.getElementById('nb-' + id).classList.add('active');
   if (document.getElementById('bn-' + id)) document.getElementById('bn-' + id).classList.add('active');
 
@@ -1168,13 +1107,17 @@ function switchGTab(type, el) {
   document.querySelectorAll('.gallery-tabs .gtab').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   currentGalleryType = type;
+  
   let hint = 'Accepted: .mp4 .jpg .png';
   if (type === 'audio') hint = 'Accepted: .mp3 .wav';
-  if (type === 'thumbnails') hint = 'Accepted: .jpg .png';
+  else if (type === 'thumbnails') hint = 'Accepted: .jpg .png';
+  
   document.getElementById('gallery-accept-hint').textContent = hint;
+  
   let ac = '.mp4,.jpg,.png,.jpeg';
   if (type === 'audio') ac = '.mp3,.wav';
-  if (type === 'thumbnails') ac = '.jpg,.png,.jpeg';
+  else if (type === 'thumbnails') ac = '.jpg,.png,.jpeg';
+  
   document.getElementById('gallery-file-input').accept = ac;
   renderGallery();
 }
@@ -1214,13 +1157,13 @@ function renderGallery() {
     return;
   }
   
-  // Munculkan tombol Hapus Semua jika ada isinya
   if (btnDelAll) btnDelAll.style.display = 'inline-flex';
 
   const isAudio = currentGalleryType === 'audio';
+  
   grid.innerHTML = items.map((f) => `
     <div class="gitem">
-      <div class="gitem-thumb ${isAudio ? '' : 'vid'}">
+      <div class="gitem-thumb ${!isAudio ? 'vid' : ''}">
         <span>${isAudio ? '🎵' : '🖼️'}</span>
         <div class="gitem-overlay">▶</div>
       </div>
@@ -1232,7 +1175,6 @@ function renderGallery() {
     </div>`).join('');
 }
 
-// FUNGSI BARU UNTUK HAPUS SEMUA SEKALIGUS
 async function deleteAllGallery() {
   const items = galleryData[currentGalleryType] || [];
   if (!items.length) return;
@@ -1242,7 +1184,6 @@ async function deleteAllGallery() {
 
   toast(`Menghapus ${items.length} file... Mohon tunggu.`, 'info');
   
-  // Mesin akan menghapus otomatis satu per satu tanpa memberatkan server
   for (let f of items) {
     const fd = new FormData();
     fd.append('yt_id', currentGalleryCh);
@@ -1271,10 +1212,9 @@ function handleGalleryUpload(event) {
     fd.append('files[]', files[i]);
   }
 
-  // 🎨 SULAP UI JADI PROGRESS BAR
   const dropZone = document.getElementById('gallery-drop-zone');
   const inputHtml = `<input type="file" id="gallery-file-input" multiple onchange="handleGalleryUpload(event)">`;
-  dropZone.style.pointerEvents = 'none'; // Matikan klik sementara agar tidak dobel
+  dropZone.style.pointerEvents = 'none'; 
   dropZone.innerHTML = `
     <div style="padding:10px;">
         <div class="uz-icon">⏳</div>
@@ -1286,7 +1226,6 @@ function handleGalleryUpload(event) {
     </div>
   `;
 
-  // Gunakan XHR agar bisa melacak persentase
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/api/upload_gallery', true);
 
@@ -1298,12 +1237,11 @@ function handleGalleryUpload(event) {
     }
   };
 
-  // Fungsi mengembalikan kotak upload ke bentuk semula
   const resetUI = () => {
     dropZone.style.pointerEvents = 'auto';
     let hint = 'Accepted: .mp4 .jpg .png';
     if (currentGalleryType === 'audio') hint = 'Accepted: .mp3 .wav';
-    if (currentGalleryType === 'thumbnails') hint = 'Accepted: .jpg .png';
+    else if (currentGalleryType === 'thumbnails') hint = 'Accepted: .jpg .png';
     dropZone.innerHTML = `
         ${inputHtml}
         <div class="uz-icon">⬆</div>
@@ -1319,15 +1257,14 @@ function handleGalleryUpload(event) {
         const d = JSON.parse(xhr.responseText);
         if (d.status === 'success') {
           toast('Upload Selesai! 🎉', 'success');
-          loadGallery(); // Refresh grid
+          loadGallery(); 
         } else {
           toast('Upload gagal: ' + d.message, 'error');
         }
       } catch(e) { toast('Error baca respon server', 'error'); }
     } else if (xhr.status === 413) {
-        // 🔥 ERROR KHUSUS NGINX (File Terlalu Besar) 🔥
         toast('❌ Gagal: File terlalu besar! (Mentok limit Nginx)', 'error');
-        alert("Upload gagal! Ukuran file melebihi limit Nginx di VPS Anda.\nSilakan jalankan perintah Nginx di bawah untuk memperbesar limitnya.");
+        alert("Upload gagal! Ukuran file melebihi limit Nginx di VPS Anda.");
     } else {
       toast('Upload gagal (Error ' + xhr.status + ')', 'error');
     }
@@ -1378,7 +1315,6 @@ function renderTitleList(bank) {
 }
 
 function uploadTitleBank(event) {
-  // Baca channel dari dropdown saat ini (bukan dari closure lama)
   const ch = document.getElementById('title-ch-sel').value;
   if (!ch) {
     toast('Pilih channel dulu sebelum upload Title Bank!', 'warn');
@@ -1401,11 +1337,9 @@ function uploadTitleBank(event) {
       return;
     }
 
-    // Update state lokal
     if (!titleBankData[ch]) titleBankData[ch] = [];
     titleBankData[ch] = [...new Set([...titleBankData[ch], ...lines])];
 
-    // Kirim ke server — pakai ch yang sudah pasti ada, bukan currentTitleCh
     const fd = new FormData();
     fd.append('yt_id', ch);
     const blob = new Blob([titleBankData[ch].join('\n')], { type: 'text/plain' });
@@ -1419,12 +1353,10 @@ function uploadTitleBank(event) {
         } else {
           toast('Gagal simpan ke server: ' + d.message, 'error');
         }
-        // Render ulang daftar judul (pakai state lokal yg sudah update)
         currentTitleCh = ch;
         renderTitleList(titleBankData[ch]);
       })
       .catch(err => {
-        // Tetap render lokal meski server gagal
         toast('Server tidak merespons, judul tersimpan sementara.', 'warn');
         currentTitleCh = ch;
         renderTitleList(titleBankData[ch]);
@@ -1464,15 +1396,15 @@ function clearTitleBank() {
 }
 
 function saveTitleBankToServer() {
-  if (!currentTitleCh) return;   // jangan kirim kalau channel belum dipilih
+  if (!currentTitleCh) return;
 
   const lines   = titleBankData[currentTitleCh] || [];
   const content = lines.join('\n');
   const blob    = new Blob([content], { type: 'text/plain' });
 
   const fd = new FormData();
-  fd.append('yt_id', currentTitleCh);          // ← field wajib, harus ada
-  fd.append('txt_file', blob, 'titles.txt');   // ← nama file eksplisit
+  fd.append('yt_id', currentTitleCh);
+  fd.append('txt_file', blob, 'titles.txt');
 
   fetch('/api/upload_title_bank', { method: 'POST', body: fd })
     .catch(err => console.warn('saveTitleBank error:', err));
@@ -1577,18 +1509,13 @@ function saveAllGenerated() {
 // ────────────────────────────────────────────────────────
 function onTargetDurationChange() {
   const val = document.getElementById('bc-target-duration').value;
-  
-  // Memunculkan kotak custom jam
   if (document.getElementById('bc-custom-duration')) {
       document.getElementById('bc-custom-duration').style.display = val === 'custom' ? 'block' : 'none';
   }
-  
-  // Memunculkan kotak rentang acak (INI YANG TERLEWAT)
   const randWrap = document.getElementById('bc-random-duration-wrap');
   if (randWrap) {
       randWrap.style.display = val === 'random' ? 'block' : 'none';
   }
-  
   updateBatchPreview();
 }
 
@@ -1694,7 +1621,6 @@ function updateBatchPreview() {
   const bank = titleBankData[yt_id] || [];
   const items = [];
   
-  // 🔥 FIX LOGIKA "NaN" DI PREVIEW 🔥
   const targetSel = document.getElementById('bc-target-duration').value;
   let target_text = '';
   if (targetSel === 'random') {
@@ -1715,7 +1641,6 @@ function updateBatchPreview() {
   const fmt = d => d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
   const endDate = new Date(startDate.getTime() + (count - 1) * interval * 86400000);
   
-  // Masukkan target_text ke sini
   const summary = `${count} video · Target: ${target_text} · selesai ${fmt(endDate)}`;
   document.getElementById('sched-summary').textContent = summary;
 
@@ -1751,7 +1676,6 @@ function generateOneTitle(bank) {
 function buildFinalSchedule() {
   const count = parseInt(document.getElementById('bc-count').value) || 0;
   
-  // 🔥 FIX LOGIKA "NaN" DI STEP 4 🔥
   const targetSel = document.getElementById('bc-target-duration').value;
   let target_text = '';
   if (targetSel === 'random') {
@@ -1769,11 +1693,8 @@ function buildFinalSchedule() {
   if (isNaN(startDate.getTime())) return;
   const yt_id = document.getElementById('bc-channel').value;
   const bank = titleBankData[yt_id] || [];
-  const chName = channels.find(c => c.yt_id === yt_id)?.name || '—';
 
   document.getElementById('sum-count').textContent = count;
-  
-  // Masukkan target_text ke sini
   if(document.getElementById('sum-duration')) document.getElementById('sum-duration').textContent = target_text;
   
   const fmt = d => d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
@@ -1813,10 +1734,8 @@ function processBatch() {
     return; 
   }
 
-  const mp3_per_video = parseInt(document.getElementById('bc-mp3-count').value) || 5;
   const targetSel = document.getElementById('bc-target-duration').value;
 
-  // Kalkulator Durasi (Fixed / Acak)
   let target_durations_hours = [];
   if (targetSel === 'random') {
       const minM = parseFloat(document.getElementById('bc-rand-min').value) || 60;
@@ -1845,8 +1764,6 @@ function processBatch() {
   }
 
   const generated_titles = Array.from({ length: count }, () => generateOneTitle(bank));
-  
-  // Cek pengaman untuk checkbox Floating Card (agar tidak error jika elemen belum ada)
   const floatingCb = document.getElementById('bc-use-floating-card');
   const is_floating = floatingCb ? floatingCb.checked : false;
 
@@ -1856,8 +1773,8 @@ function processBatch() {
     count: count,
     mp3_per_video: parseInt(document.getElementById('bc-mp3-count').value) || 5,
     bg_count: parseInt(document.getElementById('bc-bg-count').value) || 1,
-    target_duration_hours: target_durations_hours[0], // fallback lama
-    target_durations_array: target_durations_hours, // array baru
+    target_duration_hours: target_durations_hours[0],
+    target_durations_array: target_durations_hours,
     interval_days: interval,
     start_date: startRaw,
     description: document.getElementById('bc-desc').value,
@@ -1870,7 +1787,6 @@ function processBatch() {
     use_floating_card: is_floating
   };
 
-  // Kirim data ke server
   fetch('/api/batch_create', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1899,7 +1815,7 @@ function refreshBatchDropdowns() {
 }
 
 // ────────────────────────────────────────────────────────
-//  VISUALIZER PRESETS & LIVE PREVIEW
+//  VISUALIZER PRESETS
 // ────────────────────────────────────────────────────────
 function uv(id, v, s) {
   const el = document.getElementById(id);
@@ -1908,7 +1824,6 @@ function uv(id, v, s) {
 
 function getVisConfig() {
   return {
-    // 🎯 INI DIA YANG DIBENARKAN: Mengambil data tepat dari ID slider bawaan Anda
     color_bot: document.getElementById('bc-col-bot') ? document.getElementById('bc-col-bot').value : '#10b981',
     color_top: document.getElementById('bc-col-top') ? document.getElementById('bc-col-top').value : '#00e5ff',
     color_part: document.getElementById('bc-col-part') ? document.getElementById('bc-col-part').value : '#ffffff',
@@ -1970,19 +1885,11 @@ function loadVisPreset(name) {
     const el = document.getElementById(elId);
     if (el && p[keys[i]] !== undefined) {
       let val = p[keys[i]];
-      
-      // Bonus Fix: Membulatkan angka desimal panjang (seperti 0.669354...) agar UI tetap rapi
-      if (typeof val === 'number' && !Number.isInteger(val)) {
-         val = parseFloat(val.toFixed(2)); 
-      }
-      
+      if (typeof val === 'number' && !Number.isInteger(val)) val = parseFloat(val.toFixed(2)); 
       el.value = val;
       uv(lblId, val, unit);
     }
   });
-
-  // 🔥 BARIS PERUSAK DIHAPUS DARI SINI 🔥
-  // Sebelumnya ada: document.getElementById('vis-preset-load').value = '';
 }
 
 function exportVisPreset() {
@@ -2018,7 +1925,6 @@ function importVisPreset() {
         
         toast('Preset berhasil di-import! 📥', 'success');
 
-        // 🔥 FIX IMPORT: Paksa slider & canvas langsung berubah seketika!
         const keys = Object.keys(data);
         if (keys.length > 0) {
           const newPresetName = keys[0];
@@ -2037,28 +1943,17 @@ function importVisPreset() {
 function deleteVisPreset() {
   const sel = document.getElementById('vis-preset-load');
   const name = sel.value;
-  
-  if (!name) {
-    toast('Pilih preset dari dropdown dulu untuk dihapus!', 'warn');
-    return;
-  }
-  
+  if (!name) { toast('Pilih preset dari dropdown dulu untuk dihapus!', 'warn'); return; }
   if (!confirm(`Yakin ingin menghapus preset "${name}" secara permanen?`)) return;
 
-  // 1. Hapus dari memori lokal (Browser)
   delete visPresets[name];
   localStorage.setItem('wp_presets', JSON.stringify(visPresets));
-  
-  // 2. Refresh tampilan UI
   refreshVisPresetList();
   
-  // 3. Hapus dari Database Server (VPS)
   fetch('/api/delete_preset', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: name })
-  }).then(r => r.json()).then(d => {
-    if (d.status !== 'success') console.warn(d.message);
   }).catch(() => {});
 
   toast(`Preset "${name}" berhasil dibuang! 🗑️`, 'success');
@@ -2149,7 +2044,6 @@ function drawLivePreview() {
               y2 = baseY;
           }
           
-          // 🔥 GRADIEN DINAMIS: Dibuat khusus membentang dari y1 ke y2 per masing-masing bar! 🔥
           const barGrad = vCtx.createLinearGradient(0, y1, 0, y2);
           barGrad.addColorStop(0, cfg.color_top);
           barGrad.addColorStop(1, cfg.color_bot);
@@ -2169,6 +2063,7 @@ function drawLivePreview() {
   }
   requestAnimationFrame(drawLivePreview);
 }
+
 // ────────────────────────────────────────────────────────
 //  TASK MONITOR
 // ────────────────────────────────────────────────────────
@@ -2390,11 +2285,10 @@ function init() {
   fetch('/api/get_presets')
     .then(r => r.json())
     .then(d => {
-      // 🔥 FIX: Paksa browser mengikuti data dari server VPS!
       if (d && typeof d === 'object' && !Array.isArray(d)) {
         visPresets = d;
       } else {
-        visPresets = {}; // Jika di VPS kosong, paksa browser ikut kosong!
+        visPresets = {}; 
       }
       localStorage.setItem('wp_presets', JSON.stringify(visPresets));
       refreshVisPresetList();
@@ -2411,7 +2305,6 @@ function init() {
   drawLivePreview();
 }
 
-// FIX PENTING: Memaksa init() langsung berjalan tanpa mempedulikan gambar yang nyangkut
 document.addEventListener("DOMContentLoaded", init);
 </script>
 </body>
