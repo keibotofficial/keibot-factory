@@ -7,7 +7,6 @@ from zoneinfo import ZoneInfo
 import secrets
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, session
 import requests
-from faster_whisper import WhisperModel
 
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
@@ -133,9 +132,7 @@ GALLERY_FOLDER_MAP = {
     'background': 'backgrounds',
     'backgrounds':'backgrounds',
     'thumbnail':  'thumbnails',
-    'thumbnails': 'thumbnails',
-    'font':       'fonts',
-    'fonts':      'fonts',
+    'thumbnails': 'thumbnails'
 }
 
 def resolve_folder(g_type: str) -> str:
@@ -171,6 +168,9 @@ database_channel = load_channels()
 
 render_queue = queue.Queue()
 stop_flags = {}
+
+# 🔥 VARIABLE GLOBAL PENYIMPAN STATUS BLOKIR/COOLDOWN CHANNEL 🔥
+channel_cooldowns = {} 
 
 def get_ffmpeg_path():
     local_exe = os.path.join(BASE_DIR, "ffmpeg.exe")
@@ -247,9 +247,11 @@ def get_all_audios(yt_id):
 
 def get_and_consume_thumbnail(yt_id):
     path = get_channel_folder(yt_id, "thumbnails")
+    # 🔥 URUT ABJAD: Ambil yang paling atas (misal: 01.jpg, 02.jpg)
     files = sorted([f for f in os.listdir(path) if f.lower().endswith(('.jpg', '.png', '.jpeg'))])
     if not files: return None
-    return os.path.join(path, random.choice(files))
+    # Pilih selalu urutan pertama [0]
+    return os.path.join(path, files[0])
 
 def get_random_preset(allowed_names=None):
     if not os.path.exists(PRESETS_FILE): return None
@@ -443,103 +445,6 @@ class VisualEngine:
 
 def hex_to_rgb(h): return tuple(int(str(h).lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
 
-# ==========================================
-# 🔥 FUNGSI AI WHISPER (KILAT & AKURAT) 🔥
-# ==========================================
-def buat_auto_subtitle_batch(track_schedule, ass_path, font, size, c_pri, c_sec, c_out, pos_y_pct, vid_w=1280, vid_h=720):
-    print(f"🤖 [AI Whisper] Meracik subtitle (Sistem Chunking Per Lagu)...")
-    
-    # Model "base" sangat cukup untuk kecepatan tinggi di VPS
-    model = WhisperModel("base", device="cpu", compute_type="int8")
-
-    def hex2ass(h):
-        h = str(h).lstrip('#').upper()
-        if len(h) < 6: h = h.ljust(6, '0')
-        if len(h) > 6: h = h[:6]
-        try: int(h, 16)
-        except ValueError: h = 'FFFFFF'
-        r, g, b = h[0:2], h[2:4], h[4:6]
-        return f"&H00{b}{g}{r}"
-
-    def fmt_time(seconds):
-        seconds = max(0.0, float(seconds))
-        h  = int(seconds // 3600)
-        m  = int((seconds % 3600) // 60)
-        s  = seconds % 60
-        return f"{h:01d}:{m:02d}:{s:05.2f}"
-
-    ass_pri = hex2ass(c_pri)
-    ass_out = hex2ass(c_out)
-
-    margin_v = int((1.0 - float(pos_y_pct) / 100.0) * vid_h)
-    margin_v = max(10, min(margin_v, vid_h - 50))
-
-    with open(ass_path, "w", encoding="utf-8-sig") as f:
-        f.write("[Script Info]\nScriptType: v4.00+\n")
-        f.write(f"PlayResX: {vid_w}\nPlayResY: {vid_h}\nWrapStyle: 1\nScaledBorderAndShadow: yes\n\n")
-        f.write("[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n")
-        f.write(
-            f"Style: Default,{font},{size},"
-            f"{ass_pri},{ass_pri},{ass_out},&H80000000,"
-            f"-1,0,0,0,100,100,0,0,1,3,1,"
-            f"2,60,60,{margin_v},1\n\n"
-        )
-        f.write("[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
-
-        written = 0
-        
-        for track in track_schedule:
-            offset_waktu = track['start'] 
-            audio_asli = track['path']
-            print(f"   -> Transkripsi: {track['title']} (Mulai detik ke-{offset_waktu:.1f})")
-            
-            try:
-                segments_gen, info = model.transcribe(
-                    audio_asli,
-                    language="id",                 
-                    beam_size=5,                   
-                    word_timestamps=False,         
-                    condition_on_previous_text=False,
-                    
-                    # 🔥 KUNCI ANTI-MISSING & ANTI-HALUSINASI 🔥
-                    no_speech_threshold=0.6,       
-                    log_prob_threshold=-1.0,       
-                    vad_filter=True,               
-                    vad_parameters=dict(
-                        min_silence_duration_ms=2000, 
-                        speech_pad_ms=500             
-                    ),
-                    initial_prompt="Lirik:"
-                )
-                segments = list(segments_gen)
-            except Exception as e:
-                print(f"      [!] Gagal mendengarkan lagu ini: {e}")
-                continue
-                
-            if not segments:
-                print(f"      [!] Lagu full instrumen, skip...")
-                continue
-                
-            for seg in segments:
-                if seg.no_speech_prob > 0.6: continue
-                if (seg.end - seg.start) < 0.5: continue
-
-                start_str = fmt_time(seg.start + offset_waktu)
-                end_str   = fmt_time(seg.end + offset_waktu)
-
-                cleaned_text = seg.text.strip()
-                if not cleaned_text: continue
-
-                f.write(f"Dialogue: 0,{start_str},{end_str},Default,,0,0,0,,{cleaned_text}\n")
-                written += 1
-
-    if not os.path.exists(ass_path) or written == 0:
-        print(f"   [!] File ASS kosong.")
-        
-    print(f"✅ [AI Whisper] Chunking Selesai! Subtitle tergabung sempurna.")
-    return ass_path
-
-
 def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg):
     w, h = 1280, 720; fps = 30; total_f = int(duration * fps)
     c_bot = hex_to_rgb(cfg.get('color_bot', '#10b981'))
@@ -550,46 +455,19 @@ def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg)
     bg = BackgroundManager(bg_paths, w, h)
     audio = AudioBrain(); audio.load(audio_path)
     
-    file_ass = os.path.join(BASE_UPLOAD, f"lirik_sementara_{task_id}.ass")
-    safe_ass_path = os.path.abspath(file_ass).replace('\\', '/').replace(':', '\\:')
-    
-    use_subtitle = cfg.get('use_auto_subtitle', False)
-    
-    if use_subtitle and 'track_schedule' in cfg:
-        s_font = cfg.get('sub_font', 'Arial')
-        s_size = cfg.get('sub_size', 48)
-        s_pos_y = cfg.get('sub_pos_y', 15)
-        c_pri = cfg.get('sub_color', '#00e5ff')
-        c_sec = cfg.get('sub_sec_color', '#ffffff')
-        c_out = cfg.get('sub_outline', '#000000')
-
-        with db_lock:
-            for d in active_tasks:
-                if d['id'] == task_id: d['status'] = "AI Mencatat Lirik per Lagu... 🤖📝"
-        save_tasks_db()
-        
-        buat_auto_subtitle_batch(cfg['track_schedule'], file_ass, s_font, s_size, c_pri, c_sec, c_out, s_pos_y, w, h)
-        
-        with db_lock:
-            for d in active_tasks:
-                if d['id'] == task_id: d['status'] = "Rendering Visual & Subtitle... ⚡"
-        save_tasks_db()
+    with db_lock:
+        for d in active_tasks:
+            if d['id'] == task_id: d['status'] = "Rendering Visual & Background... ⚡"
+    save_tasks_db()
 
     cmd = [
         get_ffmpeg_path(), '-y', '-threads', '2', 
         '-f', 'rawvideo', '-vcodec', 'rawvideo', '-s', f'{w}x{h}', '-pix_fmt', 'bgr24', '-r', str(fps), 
         '-i', '-', 
         '-i', audio_path, 
-        '-t', str(duration)
+        '-t', str(duration),
+        '-c:v', 'libx264', '-preset', 'fast', '-pix_fmt', 'yuv420p', output_path
     ]
-    
-    if use_subtitle and os.path.exists(file_ass) and os.path.getsize(file_ass) > 100:
-        fonts_dir = os.path.join(BASE_UPLOAD, str(cfg.get('yt_id', '')), "fonts")
-        os.makedirs(fonts_dir, exist_ok=True)
-        safe_fonts_dir = os.path.abspath(fonts_dir).replace('\\', '/').replace(':', '\\:')
-        cmd.extend(['-vf', f"ass='{safe_ass_path}':fontsdir='{safe_fonts_dir}'"])
-        
-    cmd.extend(['-c:v', 'libx264', '-preset', 'fast', '-pix_fmt', 'yuv420p', output_path])
     
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
@@ -636,19 +514,28 @@ def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg)
         raise e
         
     proc.stdin.close(); proc.wait(); bg.close()
-    
-    if use_subtitle and os.path.exists(file_ass):
-        try: os.remove(file_ass)
-        except: pass
 
 # ==========================================
 # 🚀 BACKGROUND WORKER: OTO-LOOP ULTIMATE
 # ==========================================
 def background_worker():
+    global channel_cooldowns
+    
     while True:
         task = render_queue.get()
         task_id = task['id']
         yt_id = task['yt_id']
+        
+        # 🔥 SMART COOLDOWN SYSTEM (AUTO-SKIP JIKA CHANNEL TERKENA LIMIT) 🔥
+        if yt_id in channel_cooldowns:
+            if time.time() < channel_cooldowns[yt_id]:
+                sisa_menit = int((channel_cooldowns[yt_id] - time.time()) / 60)
+                move_to_history(task_id, f"Gagal ❌ (Auto-Skip: Limit Channel, Cooldown {sisa_menit} mnt)")
+                render_queue.task_done()
+                continue
+            else:
+                del channel_cooldowns[yt_id]
+                
         temp_files = [
             os.path.join(BASE_UPLOAD, f"temp_a_{task_id}.mp3"),
             os.path.join(BASE_UPLOAD, f"temp_c_{task_id}.txt"),
@@ -723,14 +610,6 @@ def background_worker():
 
             preset['yt_id'] = yt_id 
             preset['use_floating_card'] = task.get('use_floating_card', False)
-            preset['use_auto_subtitle'] = task.get('use_auto_subtitle', False)
-            preset['sub_font'] = task.get('sub_font', 'Arial')
-            preset['sub_size'] = task.get('sub_size', 48)
-            preset['sub_pos_y'] = task.get('sub_pos_y', 15)
-            preset['sub_color'] = task.get('sub_color', '#00e5ff')
-            preset['sub_sec_color'] = task.get('sub_sec_color', '#ffffff')
-            preset['sub_outline'] = task.get('sub_outline', '#000000') 
-            
             preset['track_schedule'] = track_schedule
             preset['channel_name'] = ch_name
 
@@ -774,7 +653,7 @@ def background_worker():
                     get_ffmpeg_path(), '-y', '-i', base_video, '-c', 'copy', '-t', str(target_sec), final_video
                 ], check=True)
 
-            # 🔥 SISTEM SMART ERROR DETECTOR 🔥
+            # 🔥 SISTEM SMART ERROR DETECTOR & AUTO-RETRY UPLOAD 5X 🔥
             if channel_data:
                 creds_list = channel_data.get('creds_list', [channel_data.get('creds_json')])
                 upload_berhasil = False
@@ -791,7 +670,19 @@ def background_worker():
                         try: sch_obj = datetime.strptime(task['publish_date'], "%Y-%m-%d %H:%M")
                         except: raise Exception("Format tanggal salah")
                         
-                        tags_list = [t.strip() for t in task.get('tags', '').split(',')] if task.get('tags') else ['wavepush']
+                        raw_tags = task.get('tags', '')
+                        clean_tags = raw_tags.replace('#', '').replace('<', '').replace('>', '').replace('"', '')
+                        temp_tags = [t.strip() for t in clean_tags.split(',') if t.strip()]
+                        
+                        tags_list = []
+                        char_count = 0
+                        for t in temp_tags:
+                            if char_count + len(t) <= 400:
+                                tags_list.append(t)
+                                char_count += len(t) + 1
+                        
+                        if not tags_list: tags_list = ['wavepush']
+                        
                         body = {
                             'snippet': {'title': task['title'], 'description': task.get('description', ''), 'tags': tags_list, 'categoryId': '10'},
                             'status': {'privacyStatus': task.get('privacy', 'public')}
@@ -802,17 +693,51 @@ def background_worker():
                             sch_utc = sch_aware.astimezone(timezone.utc)
                             body['status']['publishAt'] = sch_utc.strftime("%Y-%m-%dT%H:%M:%S.000Z")
                             body['status']['privacyStatus'] = 'private'
+                            
                         media = MediaFileUpload(final_video, chunksize=1024*1024*5, resumable=True)
                         req = youtube.videos().insert(part=','.join(body.keys()), body=body, media_body=media)
                         resp = None
+                        
+                        # ─── MULA LOOP UPLOAD DENGAN RETRY ───
+                        max_retries = 5
+                        retry_count = 0
+                        
                         while resp is None:
                             if stop_flags.get(task_id): raise Exception("Dibatalkan")
-                            status, resp = req.next_chunk()
-                            if status:
+                            try:
+                                status, resp = req.next_chunk()
+                                if status:
+                                    with db_lock:
+                                        for d in active_tasks:
+                                            if d['id'] == task_id: d['status'] = f"Mengunggah (Key {index_kunci+1})... {int(status.progress()*100)}% 🚀"
+                                    save_tasks_db()
+                                retry_count = 0 # Reset hitungan kalau chunk sukses
+                            except HttpError as e:
+                                # Jika error dari YT adalah error permanen (4xx) lemparkan keluar
+                                if e.resp.status < 500:
+                                    raise e
+                                else:
+                                    # Jika error 5xx dari Server YT, coba retry
+                                    retry_count += 1
+                                    if retry_count > max_retries: 
+                                        raise Exception("Server YouTube Down/Timeout setelah 5x percobaan.")
+                                    with db_lock:
+                                        for d in active_tasks:
+                                            if d['id'] == task_id: d['status'] = f"Koneksi Sinyal Lemah, Auto-Retry ({retry_count}/{max_retries})... 🔌"
+                                    save_tasks_db()
+                                    time.sleep(10)
+                            except Exception as e:
+                                # Jika error dari jaringan lokal VPS (Broken Pipe, Timeout)
+                                retry_count += 1
+                                if retry_count > max_retries: 
+                                    raise Exception("Koneksi VPS Putus setelah dicoba 5x berturut-turut.")
                                 with db_lock:
                                     for d in active_tasks:
-                                        if d['id'] == task_id: d['status'] = f"Mengunggah (Key {index_kunci+1})... {int(status.progress()*100)}% 🚀"
+                                        if d['id'] == task_id: d['status'] = f"Koneksi VPS Putus, Auto-Retry ({retry_count}/{max_retries})... 🔌"
                                 save_tasks_db()
+                                time.sleep(10)
+                        # ─── AKHIR LOOP UPLOAD ───
+                        
                         video_id = resp.get('id')
                         
                         thumb_path = get_and_consume_thumbnail(yt_id)
@@ -823,6 +748,11 @@ def background_worker():
                                         if d['id'] == task_id: d['status'] = "Memasang Thumbnail... 🖼️"
                                 save_tasks_db()
                                 youtube.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(thumb_path)).execute()
+                                # 🔥 HAPUS THUMBNAIL SETELAH BERHASIL DIPAKAI 🔥
+                                try:
+                                    os.remove(thumb_path)
+                                except Exception:
+                                    pass
                             except: pass
                                 
                         try:
@@ -845,6 +775,11 @@ def background_worker():
                             continue 
                         elif "uploadLimitExceeded" in reason:
                             pesan_error = "Limit Upload Harian Channel Tercapai!"
+                            channel_cooldowns[yt_id] = time.time() + (3600 * 24) # Ban 24 jam
+                            break
+                        elif "rateLimitExceeded" in reason:
+                            pesan_error = "Rate Limit (Terlalu Cepat) - Auto Cooldown 30 Menit"
+                            channel_cooldowns[yt_id] = time.time() + 1800 # Ban 30 menit
                             break
                         else:
                             pesan_error = f"Ditolak YT: {reason}"
@@ -853,6 +788,7 @@ def background_worker():
                         err_str = str(e).lower()
                         if "invalid_grant" in err_str or "expired" in err_str or "revoked" in err_str:
                             pesan_error = "Sesi Kedaluwarsa (Tautkan Ulang!)"
+                            channel_cooldowns[yt_id] = time.time() + (3600 * 24) # Ban 24 jam karena percuma dicoba terus
                         elif "timeout" in err_str or "connection" in err_str or "broken" in err_str:
                             pesan_error = "Koneksi VPS Putus/Timeout"
                         else:
@@ -860,6 +796,9 @@ def background_worker():
                         break
                         
                 if not upload_berhasil:
+                    if "API Habis" in pesan_error:
+                        # Semua key habis
+                        channel_cooldowns[yt_id] = time.time() + (3600 * 24)
                     raise Exception(pesan_error)
             else:
                 move_to_history(task_id, f"Render Selesai ✅ <a href='/static/final_{task_id}.mp4' target='_blank'>[Download]</a>")
@@ -980,22 +919,22 @@ def delete_preset():
         return jsonify({"status": "error", "message": str(e)})
 
 # ============================================================
-# 🖼️ GALLERY ENDPOINTS (DI-UPDATE UNTUK FONTS)
+# 🖼️ GALLERY ENDPOINTS
 # ============================================================
 
 @app.route('/api/get_asset_counts')
 def get_asset_counts():
     yt_id = request.args.get('yt_id')
-    if not yt_id: return jsonify({"audios": 0, "backgrounds": 0, "thumbnails": 0, "fonts": 0})
+    if not yt_id: return jsonify({"audios": 0, "backgrounds": 0, "thumbnails": 0})
     def count_files(sub):
         path = get_channel_folder(yt_id, sub)
         return len([f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))])
-    return jsonify({"audios": count_files("audios"), "backgrounds": count_files("backgrounds"), "thumbnails": count_files("thumbnails"), "fonts": count_files("fonts")})
+    return jsonify({"audios": count_files("audios"), "backgrounds": count_files("backgrounds"), "thumbnails": count_files("thumbnails")})
 
 @app.route('/api/get_gallery', methods=['GET'])
 def get_gallery():
     yt_id = request.args.get('yt_id')
-    if not yt_id: return jsonify({"audio": [], "background": [], "thumbnails": [], "fonts": []})
+    if not yt_id: return jsonify({"audio": [], "background": [], "thumbnails": []})
     def get_files_data(sub):
         path = get_channel_folder(yt_id, sub)
         res = []
@@ -1009,8 +948,7 @@ def get_gallery():
     return jsonify({
         "audio":      get_files_data("audios"),
         "background": get_files_data("backgrounds"),
-        "thumbnails": get_files_data("thumbnails"),
-        "fonts":      get_files_data("fonts"),
+        "thumbnails": get_files_data("thumbnails")
     })
 
 @app.route('/api/upload_gallery', methods=['POST'])
@@ -1247,14 +1185,7 @@ def batch_create():
             "vis_mode": data.get('vis_mode'), "vis_preset": data.get('vis_preset'),
             "vis_presets_allowed": data.get('vis_presets_allowed', []), "description": data.get('description', ''),
             "tags": data.get('tags', ''), "privacy": data.get('privacy', 'public'), "playlist_id": data.get('playlist_id', ''),
-            "use_floating_card": data.get('use_floating_card', False),
-            "use_auto_subtitle": data.get('use_auto_subtitle', False),
-            "sub_font": data.get('sub_font', 'Arial'),
-            "sub_size": data.get('sub_size', 48),
-            "sub_pos_y": data.get('sub_pos_y', 15),
-            "sub_color": data.get('sub_color', '#00e5ff'),
-            "sub_sec_color": data.get('sub_sec_color', '#ffffff'),
-            "sub_outline": data.get('sub_outline', '#000000') 
+            "use_floating_card": data.get('use_floating_card', False)
         }
         with db_lock:
             active_tasks.append({"id": t_id, "title": blueprint['title'], "time": blueprint['publish_date'], "status": "In Factory Queue ⚙️", "type": "📺 VOD"})
