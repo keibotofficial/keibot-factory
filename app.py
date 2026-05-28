@@ -225,7 +225,7 @@ def get_fresh_credentials(channel_data):
 def api_key_checker_worker():
     global system_notifications, database_channel
     while True:
-        time.sleep(10) # Tunggu mesin stabil saat baru nyala
+        time.sleep(10) 
         new_notifs = []
         for c in database_channel:
             creds_list = c.get('creds_list', [c.get('creds_json', '')])
@@ -234,11 +234,9 @@ def api_key_checker_worker():
                 try:
                     creds = Credentials.from_authorized_user_info(json.loads(cred_str))
                     if creds.expired and creds.refresh_token:
-                        # Mencoba refresh. Jika token hangus, ini akan memicu Exception
                         creds.refresh(Request())
                 except Exception as e:
                     msg = f"⚠️ API Key #{idx+1} untuk Channel '{c.get('name','Unknown')}' EXPIRED! Silakan hapus dan tautkan ulang."
-                    # Mencegah duplikasi pesan yang sama
                     if not any(n['msg'] == msg for n in system_notifications):
                         new_notifs.append({"msg": msg, "time": datetime.now().strftime("%Y-%m-%d %H:%M")})
         
@@ -246,7 +244,6 @@ def api_key_checker_worker():
             with db_lock:
                 system_notifications.extend(new_notifs)
                 
-        # Satpam tidur, akan keliling patroli lagi setiap 12 Jam (43200 detik)
         time.sleep(43200)
 
 threading.Thread(target=api_key_checker_worker, daemon=True).start()
@@ -860,7 +857,6 @@ threading.Thread(target=background_worker, daemon=True).start()
 @app.route('/')
 def index(): return render_template('index.html')
 
-# 🔥 ENDPOINT LONCENG NOTIFIKASI 🔥
 @app.route('/api/notifications', methods=['GET'])
 def get_notifications():
     return jsonify(system_notifications)
@@ -974,7 +970,6 @@ def delete_preset():
 # ============================================================
 # 🖼️ GALLERY ENDPOINTS
 # ============================================================
-
 @app.route('/api/get_asset_counts')
 def get_asset_counts():
     yt_id = request.args.get('yt_id')
@@ -1062,7 +1057,6 @@ def delete_gallery_file():
 # ============================================================
 # 📝 TITLE BANK ENDPOINT
 # ============================================================
-
 @app.route('/api/upload_title_bank', methods=['POST'])
 def upload_title_bank():
     yt_id = (request.form.get('yt_id') or request.args.get('yt_id') or '').strip()
@@ -1212,7 +1206,6 @@ def batch_create():
     yt_id = data.get('yt_id')
     count = data.get('count', 1)
     titles = data.get('generated_titles', [])
-    
     durations_array = data.get('target_durations_array', []) 
     
     try:
@@ -1220,9 +1213,12 @@ def batch_create():
     except:
         return jsonify({"status": "error", "message": "Format tanggal salah"}), 400
         
+    # 🔥 FIX 1: Konversi interval_days ke float secara eksplisit untuk mencegah TypeError pada timedelta
+    interval_days = float(data.get('interval_days', 1))
+        
     for i in range(count):
         t_id = int(time.time()) + i
-        v_date = base_date + timedelta(days=i * data.get('interval_days', 1))
+        v_date = base_date + timedelta(days=i * interval_days)
         
         if i < len(durations_array):
             vid_duration = durations_array[i]
@@ -1242,8 +1238,14 @@ def batch_create():
         }
         with db_lock:
             active_tasks.append({"id": t_id, "title": blueprint['title'], "time": blueprint['publish_date'], "status": "In Factory Queue ⚙️", "type": "📺 VOD"})
-        save_tasks_db()
+        
+        # Masukkan blueprint ke antrean in-memory worker
         render_queue.put(blueprint)
+        
+    # 🔥 FIX 2: Pindahkan save_tasks_db() ke LUAR perulangan 'for' 
+    # Menghindari penulisan beruntun ke disk I/O yang menyebabkan VPS freeze/lag
+    save_tasks_db()
+    
     return jsonify({"status": "success", "message": f"{count} Video diproses!"})
     
 @app.route('/uploads/<path:filename>')
