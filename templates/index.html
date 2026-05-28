@@ -960,6 +960,13 @@ let currentGalleryType = 'audio';
 let currentGalleryCh = '';
 let currentTitleCh = '';
 
+// 🔥 FIX: FUNGSI YANG HILANG SEBELUMNYA 🔥
+function generateOneTitle(bank) {
+  if (!bank || !bank.length) return "Video Baru";
+  return bank[Math.floor(Math.random() * bank.length)];
+}
+// ────────────────────────────────────────────────────────
+
 // ────────────────────────────────────────────────────────
 //  CANVAS — resize responsif
 // ────────────────────────────────────────────────────────
