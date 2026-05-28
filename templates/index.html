@@ -379,17 +379,9 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
 
 /* VISUALIZER ENHANCEMENTS */
 .preview-container {
-  position: relative;
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto 16px auto;
-  aspect-ratio: 16 / 9;
-  height: auto;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  box-shadow: inset 0 0 40px rgba(0,0,0,0.7);
+  position: relative; width: 100%; max-width: 800px; margin: 0 auto 16px auto;
+  aspect-ratio: 16 / 9; height: auto; border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--border); background: var(--bg); box-shadow: inset 0 0 40px rgba(0,0,0,0.7);
 }
 .preview-bg-vid, .preview-bg-img {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: none;
@@ -492,6 +484,22 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
       <div class="tb-sub" id="tb-sub">Overview sistem & analytics</div>
     </div>
     <div class="tb-right">
+      
+      <div class="notif-container" style="position:relative;">
+        <button id="notif-btn" class="btn btn-g" style="padding:8px; border-radius:50%; width:36px; height:36px; position:relative;" onclick="toggleNotif()">
+           🔔
+           <span id="notif-badge" style="display:none; position:absolute; top:-4px; right:-4px; background:var(--accent2); color:#fff; font-size:10px; font-weight:bold; border-radius:50%; width:18px; height:18px; line-height:18px; text-align:center;">0</span>
+        </button>
+        <div id="notif-dropdown" style="display:none; position:absolute; top:45px; right:0; width:320px; background:var(--surface); border:1px solid var(--border); border-radius:8px; z-index:100; box-shadow:0 10px 25px rgba(0,0,0,0.5);">
+           <div style="padding:12px 14px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+              <strong style="font-size:13px; color:var(--text);">Notifikasi Sistem</strong>
+              <button class="btn btn-g btn-sm" onclick="clearNotifs()" style="font-size:10px; padding:3px 6px;">Bersihkan</button>
+           </div>
+           <div id="notif-list" style="max-height:300px; overflow-y:auto; padding:12px;">
+              <div style="font-size:11px; color:var(--muted); text-align:center;">Tidak ada notifikasi</div>
+           </div>
+        </div>
+      </div>
       <div class="sys-monitor">
         <div class="sm-item"><span class="sm-lbl">CPU</span><span class="sm-val" id="sys-cpu" style="color:var(--accent)">–%</span></div>
         <div style="width:1px;height:22px;background:var(--border)"></div>
@@ -690,11 +698,13 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
           <div class="fs-title">📝 Template Metadata YouTube</div>
           <div class="g2">
             <div class="fg"><label class="fl">Deskripsi Video</label><textarea id="bc-desc" rows="4" placeholder="Deskripsi yang sama untuk semua video...">🎵 Enjoy this lo-fi beat for studying, relaxing, or working.
-📌 Subscribe for daily uploads!
-
-#lofi #chillbeats #studymusic</textarea></div>
+📌 Subscribe for daily uploads!</textarea></div>
             <div>
-              <div class="fg"><label class="fl">Tags <small>(koma)</small></label><input type="text" id="bc-tags" value="lofi, chill beats, study music" placeholder="tag1, tag2, ..."></div>
+              <div class="fg">
+                <label class="fl">Tags <small>(koma, max 400 char)</small></label>
+                <input type="text" id="bc-tags" value="lofi, chill beats, study music" placeholder="tag1, tag2, ..." oninput="validateTags()">
+                <div id="tag-warn" style="display:none; color:var(--accent2); font-size:10px; font-weight:bold; margin-top:4px;"></div>
+              </div>
               <div class="fg"><label class="fl">Privasi</label><select id="bc-privacy"><option value="public">🌍 Public</option><option value="unlisted">🔗 Unlisted</option><option value="private" selected>🔒 Private (schedule)</option></select></div>
             </div>
           </div>
@@ -721,18 +731,16 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
             <div class="fg" id="custom-interval-wrap" style="display:none"><label class="fl">Interval Custom <small>(hari)</small></label><input type="number" id="bc-custom-interval" value="1" min="0.1" step="0.1" oninput="updateBatchPreview()"></div>
             <div class="fg" style="margin-bottom:18px; padding-bottom:18px; border-bottom:1px dashed var(--border2);">
               <label class="fl" style="color:var(--green); font-size:13px;">⏱️ Target Durasi Final Video</label>
-              <div style="font-family:var(--font-m);font-size:10px;color:var(--muted);margin-bottom:8px">Sistem akan otomatis menghitung <i>looping</i> yang dibutuhkan agar video pas sesuai durasi ini.</div>
+              <div style="font-family:var(--font-m);font-size:10px;color:var(--muted);margin-bottom:8px">Sistem otomatis loop agar durasi pas.</div>
               <select id="bc-target-duration" onchange="onTargetDurationChange()" style="font-size:14px; font-weight:bold; background:rgba(0,232,135,.05); border-color:rgba(0,232,135,.3); color:var(--green);">
                 <option value="1">1 Jam (60 Menit)</option>
                 <option value="3">3 Jam</option>
                 <option value="5">5 Jam</option>
-                <option value="10" selected>10 Jam (Lullaby / Sleep Music)</option>
+                <option value="10" selected>10 Jam</option>
                 <option value="custom">⚙️ Custom Fixed (Jam)...</option>
                 <option value="random">🎲 ACAK (Range Menit)...</option>
               </select>
-              
-              <input type="number" id="bc-custom-duration" value="2" min="0.1" step="0.1" style="display:none; margin-top:8px; border-color:var(--accent);" placeholder="Ketik jumlah jam (Misal: 2.5 untuk 2,5 Jam)" oninput="updateBatchPreview()">
-              
+              <input type="number" id="bc-custom-duration" value="2" min="0.1" step="0.1" style="display:none; margin-top:8px; border-color:var(--accent);" placeholder="Jumlah jam" oninput="updateBatchPreview()">
               <div id="bc-random-duration-wrap" style="display:none; margin-top:8px; background:var(--card); padding:10px; border-radius:8px; border:1px dashed var(--border2);">
                 <label class="fl" style="font-size:10px; margin-bottom:6px;">Rentang Acak (Menit)</label>
                 <div style="display:flex; gap:8px; align-items:center;">
@@ -740,7 +748,6 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
                   <span style="color:var(--muted); font-size:12px; font-weight:bold;">s/d</span>
                   <input type="number" id="bc-rand-max" value="80" placeholder="Max" style="border-color:var(--accent);" oninput="updateBatchPreview()">
                 </div>
-                <div style="font-family:var(--font-m);font-size:9px;color:var(--muted);margin-top:6px;">*Durasi akhir setiap video akan diacak di antara angka ini.</div>
               </div>
             </div>
           </div>
@@ -1015,11 +1022,6 @@ function go(id, el) {
   }
 }
 
-function toggleMenu() {
-  document.querySelector('.sidebar').classList.toggle('show');
-  document.getElementById('sidebar-overlay').classList.toggle('show');
-}
-
 // ────────────────────────────────────────────────────────
 //  TOAST
 // ────────────────────────────────────────────────────────
@@ -1033,6 +1035,50 @@ function toast(msg, type = 'info') {
   w.appendChild(el);
   setTimeout(() => { if (el.parentNode) el.remove(); }, 3500);
 }
+
+// ────────────────────────────────────────────────────────
+//  NOTIFICATIONS BELL (SATPAM API)
+// ────────────────────────────────────────────────────────
+function fetchNotifs() {
+  fetch('/api/notifications').then(r => r.json()).then(data => {
+      const badge = document.getElementById('notif-badge');
+      const list = document.getElementById('notif-list');
+      
+      if (data && data.length > 0) {
+          badge.style.display = 'block';
+          badge.textContent = data.length;
+          list.innerHTML = data.map(n => `
+              <div style="margin-bottom:10px; padding-bottom:10px; border-bottom:1px dashed var(--border);">
+                  <div style="color:var(--accent2); margin-bottom:4px; line-height:1.4; font-size:11px;">${n.msg}</div>
+                  <div style="font-family:var(--font-m); font-size:9px; color:var(--muted);">${n.time}</div>
+              </div>`).join('');
+      } else {
+          badge.style.display = 'none';
+          list.innerHTML = '<div style="font-size:11px; color:var(--muted); text-align:center;">Tidak ada notifikasi error. API Aman! 🟢</div>';
+      }
+  }).catch(e => {});
+}
+
+function toggleNotif() {
+  const d = document.getElementById('notif-dropdown');
+  d.style.display = d.style.display === 'none' ? 'block' : 'none';
+}
+
+function clearNotifs() {
+  fetch('/api/notifications/clear', {method: 'POST'}).then(r => r.json()).then(d => {
+      fetchNotifs();
+      document.getElementById('notif-dropdown').style.display = 'none';
+  });
+}
+
+// Tutup notifikasi kalau user klik di luar kotak
+document.addEventListener('click', function(e) {
+    const d = document.getElementById('notif-dropdown');
+    const b = document.getElementById('notif-btn');
+    if (d && d.style.display === 'block' && !d.contains(e.target) && !b.contains(e.target)) {
+        d.style.display = 'none';
+    }
+});
 
 // ────────────────────────────────────────────────────────
 //  SYSTEM MONITOR
@@ -1178,12 +1224,9 @@ function renderGallery() {
 async function deleteAllGallery() {
   const items = galleryData[currentGalleryType] || [];
   if (!items.length) return;
-  
   const typeName = currentGalleryType.toUpperCase();
-  if (!confirm(`⚠️ PERINGATAN!\nYakin ingin menghapus SEMUA file ${typeName} (${items.length} file) di channel ini?\n\nFile tidak dapat dikembalikan!`)) return;
-
-  toast(`Menghapus ${items.length} file... Mohon tunggu.`, 'info');
-  
+  if (!confirm(`⚠️ PERINGATAN!\nYakin ingin menghapus SEMUA file ${typeName} di channel ini?`)) return;
+  toast(`Menghapus ${items.length} file...`, 'info');
   for (let f of items) {
     const fd = new FormData();
     fd.append('yt_id', currentGalleryCh);
@@ -1191,7 +1234,6 @@ async function deleteAllGallery() {
     fd.append('name', f.name);
     try { await fetch('/api/delete_gallery_file', { method: 'POST', body: fd }); } catch (e) {}
   }
-  
   toast(`Semua file berhasil dikosongkan!`, 'success');
   loadGallery();
 }
@@ -1208,9 +1250,7 @@ function handleGalleryUpload(event) {
   const fd = new FormData();
   fd.append('yt_id', currentGalleryCh);
   fd.append('type', currentGalleryType);
-  for (let i = 0; i < files.length; i++) {
-    fd.append('files[]', files[i]);
-  }
+  for (let i = 0; i < files.length; i++) fd.append('files[]', files[i]);
 
   const dropZone = document.getElementById('gallery-drop-zone');
   const inputHtml = `<input type="file" id="gallery-file-input" multiple onchange="handleGalleryUpload(event)">`;
@@ -1228,7 +1268,6 @@ function handleGalleryUpload(event) {
 
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/api/upload_gallery', true);
-
   xhr.upload.onprogress = function(e) {
     if (e.lengthComputable) {
       const percent = Math.round((e.loaded / e.total) * 100);
@@ -1253,28 +1292,10 @@ function handleGalleryUpload(event) {
   xhr.onload = function() {
     resetUI();
     if (xhr.status === 200) {
-      try {
-        const d = JSON.parse(xhr.responseText);
-        if (d.status === 'success') {
-          toast('Upload Selesai! 🎉', 'success');
-          loadGallery(); 
-        } else {
-          toast('Upload gagal: ' + d.message, 'error');
-        }
-      } catch(e) { toast('Error baca respon server', 'error'); }
-    } else if (xhr.status === 413) {
-        toast('❌ Gagal: File terlalu besar! (Mentok limit Nginx)', 'error');
-        alert("Upload gagal! Ukuran file melebihi limit Nginx di VPS Anda.");
-    } else {
-      toast('Upload gagal (Error ' + xhr.status + ')', 'error');
-    }
+      toast('Upload Selesai! 🎉', 'success'); loadGallery(); 
+    } else { toast('Upload gagal', 'error'); }
   };
-
-  xhr.onerror = function() {
-    resetUI();
-    toast('❌ Koneksi terputus saat upload!', 'error');
-  };
-
+  xhr.onerror = function() { resetUI(); toast('❌ Koneksi terputus!', 'error'); };
   xhr.send(fd);
 }
 
@@ -1316,53 +1337,20 @@ function renderTitleList(bank) {
 
 function uploadTitleBank(event) {
   const ch = document.getElementById('title-ch-sel').value;
-  if (!ch) {
-    toast('Pilih channel dulu sebelum upload Title Bank!', 'warn');
-    event.target.value = '';
-    return;
-  }
-
+  if (!ch) { toast('Pilih channel dulu sebelum upload Title Bank!', 'warn'); event.target.value = ''; return; }
   const file = event.target.files[0];
   if (!file) return;
-
   const reader = new FileReader();
   reader.onload = e => {
-    const lines = e.target.result
-      .split('\n')
-      .map(l => l.trim())
-      .filter(Boolean);
-
-    if (!lines.length) {
-      toast('File .txt kosong atau tidak ada judul valid.', 'warn');
-      return;
-    }
-
+    const lines = e.target.result.split('\n').map(l => l.trim()).filter(Boolean);
+    if (!lines.length) { toast('File .txt kosong atau tidak ada judul valid.', 'warn'); return; }
     if (!titleBankData[ch]) titleBankData[ch] = [];
     titleBankData[ch] = [...new Set([...titleBankData[ch], ...lines])];
-
-    const fd = new FormData();
-    fd.append('yt_id', ch);
-    const blob = new Blob([titleBankData[ch].join('\n')], { type: 'text/plain' });
-    fd.append('txt_file', blob, 'titles.txt');
-
-    fetch('/api/upload_title_bank', { method: 'POST', body: fd })
-      .then(r => r.json())
-      .then(d => {
-        if (d.status === 'success') {
-          toast(d.message, 'success');
-        } else {
-          toast('Gagal simpan ke server: ' + d.message, 'error');
-        }
-        currentTitleCh = ch;
-        renderTitleList(titleBankData[ch]);
-      })
-      .catch(err => {
-        toast('Server tidak merespons, judul tersimpan sementara.', 'warn');
-        currentTitleCh = ch;
-        renderTitleList(titleBankData[ch]);
-      });
+    saveTitleBankToServer(ch);
+    currentTitleCh = ch;
+    renderTitleList(titleBankData[ch]);
+    toast('Judul diimport', 'success');
   };
-
   reader.readAsText(file);
   event.target.value = '';
 } 
@@ -1375,7 +1363,7 @@ function addManualTitle() {
   if (!titleBankData[currentTitleCh]) titleBankData[currentTitleCh] = [];
   titleBankData[currentTitleCh].push(val);
   inp.value = '';
-  saveTitleBankToServer();
+  saveTitleBankToServer(currentTitleCh);
   renderTitleList(titleBankData[currentTitleCh]);
   toast('Judul ditambahkan', 'success');
 }
@@ -1383,7 +1371,7 @@ function addManualTitle() {
 function deleteTitle(idx) {
   if (!currentTitleCh || !titleBankData[currentTitleCh]) return;
   titleBankData[currentTitleCh].splice(idx, 1);
-  saveTitleBankToServer();
+  saveTitleBankToServer(currentTitleCh);
   renderTitleList(titleBankData[currentTitleCh]);
 }
 
@@ -1391,26 +1379,19 @@ function clearTitleBank() {
   if (!currentTitleCh) { toast('Pilih channel dulu!', 'warn'); return; }
   if (!confirm('Hapus semua judul?')) return;
   titleBankData[currentTitleCh] = [];
-  saveTitleBankToServer();
+  saveTitleBankToServer(currentTitleCh);
   renderTitleList([]);
 }
 
-function saveTitleBankToServer() {
-  if (!currentTitleCh) return;
-
-  const lines   = titleBankData[currentTitleCh] || [];
-  const content = lines.join('\n');
-  const blob    = new Blob([content], { type: 'text/plain' });
-
+function saveTitleBankToServer(ch) {
+  const lines = titleBankData[ch] || [];
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
   const fd = new FormData();
-  fd.append('yt_id', currentTitleCh);
+  fd.append('yt_id', ch);
   fd.append('txt_file', blob, 'titles.txt');
-
-  fetch('/api/upload_title_bank', { method: 'POST', body: fd })
-    .catch(err => console.warn('saveTitleBank error:', err));
+  fetch('/api/upload_title_bank', { method: 'POST', body: fd }).catch(err => console.warn(err));
 }
 
-// ── Title Generator Logic ──
 function generateTitles() {
   if (!currentTitleCh) { toast('Pilih channel dulu!', 'warn'); return; }
   const bank = titleBankData[currentTitleCh] || [];
@@ -1453,12 +1434,7 @@ function generateTitles() {
       const base = bank[Math.floor(Math.random() * bank.length)];
       const q = qualifiers[Math.floor(Math.random() * qualifiers.length)];
       const v = vibes[Math.floor(Math.random() * vibes.length)];
-      const vars = [
-        `${q} ${base}`,
-        `${base} ${v}`,
-        `${q} ${base} ${v}`,
-        `${base} — ${q} ${v}`,
-      ];
+      const vars = [`${q} ${base}`, `${base} ${v}`, `${q} ${base} ${v}`, `${base} — ${q} ${v}`];
       title = vars[Math.floor(Math.random() * vars.length)];
     }
     if (suffixes.length) {
@@ -1487,9 +1463,8 @@ function generateTitles() {
 function addOneGenTitle(idx) {
   if (!currentTitleCh) { toast('Pilih channel dulu!', 'warn'); return; }
   if (!titleBankData[currentTitleCh]) titleBankData[currentTitleCh] = [];
-  if (idx < 0 || idx >= generatedTitles.length) return;
   titleBankData[currentTitleCh].push(generatedTitles[idx]);
-  saveTitleBankToServer();
+  saveTitleBankToServer(currentTitleCh);
   renderTitleList(titleBankData[currentTitleCh]);
   toast('Judul ditambahkan ke bank', 'success');
 }
@@ -1499,7 +1474,7 @@ function saveAllGenerated() {
   if (!generatedTitles.length) { toast('Belum ada hasil generate', 'warn'); return; }
   if (!titleBankData[currentTitleCh]) titleBankData[currentTitleCh] = [];
   titleBankData[currentTitleCh] = [...new Set([...titleBankData[currentTitleCh], ...generatedTitles])];
-  saveTitleBankToServer();
+  saveTitleBankToServer(currentTitleCh);
   renderTitleList(titleBankData[currentTitleCh]);
   toast(`${generatedTitles.length} judul disimpan ke bank`, 'success');
 }
@@ -1507,30 +1482,46 @@ function saveAllGenerated() {
 // ────────────────────────────────────────────────────────
 //  BATCH CREATOR (AUTO-PILOT)
 // ────────────────────────────────────────────────────────
+// 🔥 FUNGSI VALIDASI TAGS (ANTI ERROR invalidTags) 🔥
+function validateTags() {
+  const el = document.getElementById('bc-tags');
+  const warn = document.getElementById('tag-warn');
+  const val = el.value;
+  let errs = [];
+  
+  if (val.length > 400) errs.push(`Terlalu panjang! (${val.length}/400 karakter)`);
+  if (val.includes('#')) errs.push('Hapus tanda pagar (#)');
+  if (val.includes('<') || val.includes('>')) errs.push('Karakter < > dilarang');
+  if (val.includes('"')) errs.push('Tanda kutip ganda dilarang');
+  
+  if (errs.length > 0) {
+    warn.innerHTML = '⚠️ ' + errs.join(' | ');
+    warn.style.display = 'block';
+    el.style.borderColor = 'var(--accent2)';
+    return false;
+  } else {
+    warn.style.display = 'none';
+    el.style.borderColor = 'var(--border)';
+    return true;
+  }
+}
+
 function onTargetDurationChange() {
   const val = document.getElementById('bc-target-duration').value;
   if (document.getElementById('bc-custom-duration')) {
       document.getElementById('bc-custom-duration').style.display = val === 'custom' ? 'block' : 'none';
   }
   const randWrap = document.getElementById('bc-random-duration-wrap');
-  if (randWrap) {
-      randWrap.style.display = val === 'random' ? 'block' : 'none';
-  }
+  if (randWrap) randWrap.style.display = val === 'random' ? 'block' : 'none';
   updateBatchPreview();
 }
 
 let currentStep = 1;
 
 function goStep(n) {
-  if (n > 1 && !document.getElementById('bc-channel').value) {
-    toast('Pilih channel dulu!', 'warn'); return;
-  }
-  if (n > 2 && !document.getElementById('bc-start-date').value) {
-    toast('Pilih tanggal publish dulu!', 'warn'); return;
-  }
-  if (n === 3) {
-    setTimeout(initCanvas, 50);
-  }
+  if (n > 1 && !document.getElementById('bc-channel').value) { toast('Pilih channel dulu!', 'warn'); return; }
+  if (n > 2 && !document.getElementById('bc-start-date').value) { toast('Pilih tanggal publish dulu!', 'warn'); return; }
+  if (n === 3) setTimeout(initCanvas, 50);
   if (n === 4) buildFinalSchedule();
 
   currentStep = n;
@@ -1567,31 +1558,20 @@ function onBcChannelChange() {
     setStatus('bc-audio-status', aCount, 'file audio');
     setStatus('bc-bg-status', bCount, 'file background');
     setStatus('bc-title-status', tCount, 'judul di bank');
-
     updatePreviewBackground(yt_id);
-  }).catch(() => {
-    ['bc-audio-status', 'bc-bg-status', 'bc-title-status'].forEach(id => {
-      document.getElementById(id).textContent = 'Gagal memuat data';
-      document.getElementById(id).style.color = 'var(--accent2)';
-    });
-  });
+  }).catch(() => {});
   updateBatchPreview();
 }
 
 function fetchPlaylistsForBatch(yt_id) {
   const sel = document.getElementById('bc-playlist');
-  if (!yt_id) {
-    sel.innerHTML = '<option value="">-- Tidak masuk playlist --</option>';
-    return;
-  }
+  if (!yt_id) { sel.innerHTML = '<option value="">-- Tidak masuk playlist --</option>'; return; }
   sel.innerHTML = '<option value="">⏳ Mengambil...</option>';
   fetch('/api/get_playlists?yt_id=' + yt_id)
     .then(r => r.json())
     .then(data => {
       sel.innerHTML = '<option value="">-- Tidak masuk playlist --</option>';
-      if (Array.isArray(data)) {
-        data.forEach(pl => sel.innerHTML += `<option value="${pl.id}">${pl.title}</option>`);
-      }
+      if (Array.isArray(data)) data.forEach(pl => sel.innerHTML += `<option value="${pl.id}">${pl.title}</option>`);
     })
     .catch(() => { sel.innerHTML = '<option value="">-- Tidak masuk playlist --</option>'; });
 }
@@ -1650,32 +1630,15 @@ function updateBatchPreview() {
         <div class="sched-num">${item.num}</div>
         <div class="sched-info">
           <div class="sched-title">${item.title}</div>
-          <div class="sched-meta">Bahan: MP3 & Background Acak · Target: ${target_text}</div>
+          <div class="sched-meta">Bahan Acak · Target: ${target_text}</div>
         </div>
         <div class="sched-date">${fmt(item.date)}</div>
       </div>`).join('') +
     (count > 8 ? `<div style="text-align:center;padding:10px;color:var(--muted);font-family:var(--font-m);font-size:10px">...dan ${count - 8} video lainnya</div>` : '');
 }
 
-function generateOneTitle(bank) {
-  if (!bank || !bank.length) return 'Video';
-  const parts = bank.map(t => {
-    const m = t.match(/([|\-:])/);
-    if (m) { const s = m[1]; const sp = t.split(s); return [sp[0].trim(), sp.slice(1).join(s).trim()]; }
-    const words = t.split(' '), mid = Math.ceil(words.length / 2);
-    return [words.slice(0, mid).join(' '), words.slice(mid).join(' ')];
-  });
-  const f = parts.map(p => p[0]).filter(Boolean);
-  const s = parts.map(p => p[1]).filter(Boolean);
-  if (!f.length || !s.length) return bank[Math.floor(Math.random() * bank.length)];
-  const a = f[Math.floor(Math.random() * f.length)];
-  const b = s[Math.floor(Math.random() * s.length)];
-  return a + ' — ' + b;
-}
-
 function buildFinalSchedule() {
   const count = parseInt(document.getElementById('bc-count').value) || 0;
-  
   const targetSel = document.getElementById('bc-target-duration').value;
   let target_text = '';
   if (targetSel === 'random') {
@@ -1725,17 +1688,18 @@ function buildFinalSchedule() {
 }
 
 function processBatch() {
+  if (!validateTags()) {
+      toast('Perbaiki format Tags terlebih dahulu agar tidak ditolak YouTube!', 'warn');
+      return;
+  }
+
   const count = parseInt(document.getElementById('bc-count').value) || 0;
   const startRaw = document.getElementById('bc-start-date').value;
   const yt_id = document.getElementById('bc-channel').value;
   
-  if (!yt_id || !startRaw || count < 1) { 
-    toast('Lengkapi data terlebih dahulu!', 'warn'); 
-    return; 
-  }
+  if (!yt_id || !startRaw || count < 1) { toast('Lengkapi data terlebih dahulu!', 'warn'); return; }
 
   const targetSel = document.getElementById('bc-target-duration').value;
-
   let target_durations_hours = [];
   if (targetSel === 'random') {
       const minM = parseFloat(document.getElementById('bc-rand-min').value) || 60;
@@ -1755,12 +1719,8 @@ function processBatch() {
 
   let selectedPresets = [];
   if (visMode === 'random') {
-    document.querySelectorAll('#random-preset-list input[type="checkbox"]:checked')
-      .forEach(c => selectedPresets.push(c.value));
-    if (selectedPresets.length === 0) {
-      toast('Pilih minimal 1 Preset untuk mode Random!', 'warn'); 
-      return;
-    }
+    document.querySelectorAll('#random-preset-list input[type="checkbox"]:checked').forEach(c => selectedPresets.push(c.value));
+    if (selectedPresets.length === 0) { toast('Pilih minimal 1 Preset untuk mode Random!', 'warn'); return; }
   }
 
   const generated_titles = Array.from({ length: count }, () => generateOneTitle(bank));
@@ -1794,12 +1754,8 @@ function processBatch() {
   }).then(r => r.json()).then(d => {
     if (d.status === 'success') {
       toast(`🚀 ${count} video berhasil dimasukkan ke antrean!`, 'success');
-      go('tasks');
-      currentStep = 1;
-      goStep(1);
-    } else {
-      toast('Gagal: ' + (d.message || 'Unknown error'), 'error');
-    }
+      go('tasks'); currentStep = 1; goStep(1);
+    } else { toast('Gagal: ' + (d.message || 'Unknown error'), 'error'); }
   }).catch(() => toast('Koneksi gagal', 'error'));
 }
 
@@ -1808,26 +1764,19 @@ function refreshBatchDropdowns() {
   const val = sel.value;
   sel.innerHTML = '<option value="">-- Pilih Channel --</option>';
   channels.forEach(c => sel.innerHTML += `<option value="${c.yt_id}">${c.name}</option>`);
-  if (val) {
-    sel.value = val;
-    onBcChannelChange();
-  }
+  if (val) { sel.value = val; onBcChannelChange(); }
 }
 
 // ────────────────────────────────────────────────────────
 //  VISUALIZER PRESETS
 // ────────────────────────────────────────────────────────
-function uv(id, v, s) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = v + s;
-}
+function uv(id, v, s) { const el = document.getElementById(id); if (el) el.textContent = v + s; }
 
 function getVisConfig() {
   return {
     color_bot: document.getElementById('bc-col-bot') ? document.getElementById('bc-col-bot').value : '#10b981',
     color_top: document.getElementById('bc-col-top') ? document.getElementById('bc-col-top').value : '#00e5ff',
     color_part: document.getElementById('bc-col-part') ? document.getElementById('bc-col-part').value : '#ffffff',
-    
     pos_x: document.getElementById('bc-pos-x') ? parseFloat(document.getElementById('bc-pos-x').value) : 50,
     pos_y: document.getElementById('bc-pos-y') ? parseFloat(document.getElementById('bc-pos-y').value) : 85,
     width_pct: document.getElementById('bc-width') ? parseFloat(document.getElementById('bc-width').value) : 60,
@@ -1851,11 +1800,7 @@ function saveVisPreset() {
   visPresets[trimmed] = getVisConfig();
   localStorage.setItem('wp_presets', JSON.stringify(visPresets));
   refreshVisPresetList();
-  fetch('/api/save_preset', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ [trimmed]: visPresets[trimmed] })
-  }).catch(() => {});
+  fetch('/api/save_preset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [trimmed]: visPresets[trimmed] }) }).catch(() => {});
   toast('Preset "' + trimmed + '" disimpan', 'success');
 }
 
@@ -1867,27 +1812,17 @@ function loadVisPreset(name) {
   document.getElementById('bc-col-part').value = p.color_part || '#ffffff';
   
   const map = [
-    ['bc-pos-x',  'vv-px', '%'],
-    ['bc-pos-y',  'vv-py', '%'],
-    ['bc-width',  'vv-wp', '%'],
-    ['bc-maxh',   'vv-mh', '%'],
-    ['bc-idle',   'vv-ih', 'px'],
-    ['bc-bars',   'vv-bc', ''],
-    ['bc-react',  'vv-r',  'x'],
-    ['bc-grav',   'vv-g',  ''],
-    ['bc-gap',    'vv-sp', 'px'],
-    ['bc-parts',  'vv-pa', ''],
-    ['bc-pspd',   'vv-ps', 'x']
+    ['bc-pos-x',  'vv-px', '%'], ['bc-pos-y',  'vv-py', '%'], ['bc-width',  'vv-wp', '%'], ['bc-maxh',   'vv-mh', '%'],
+    ['bc-idle',   'vv-ih', 'px'], ['bc-bars',   'vv-bc', ''], ['bc-react',  'vv-r',  'x'], ['bc-grav',   'vv-g',  ''],
+    ['bc-gap',    'vv-sp', 'px'], ['bc-parts',  'vv-pa', ''], ['bc-pspd',   'vv-ps', 'x']
   ];
   const keys = ['pos_x','pos_y','width_pct','max_height','idle_height','bar_count','reactivity','gravity','spacing','part_amount','part_speed'];
-  
   map.forEach(([elId, lblId, unit], i) => {
     const el = document.getElementById(elId);
     if (el && p[keys[i]] !== undefined) {
       let val = p[keys[i]];
       if (typeof val === 'number' && !Number.isInteger(val)) val = parseFloat(val.toFixed(2)); 
-      el.value = val;
-      uv(lblId, val, unit);
+      el.value = val; uv(lblId, val, unit);
     }
   });
 }
@@ -1898,41 +1833,23 @@ function exportVisPreset() {
   const dl = document.createElement('a');
   dl.setAttribute('href', 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(p, null, 4)));
   dl.setAttribute('download', 'presets.json');
-  dl.click();
-  toast('File presets.json berhasil di-download!', 'success');
+  dl.click(); toast('File presets.json berhasil di-download!', 'success');
 }
 
 function importVisPreset() {
-  const inp = document.createElement('input');
-  inp.type = 'file';
-  inp.accept = '.json';
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json';
   inp.onchange = e => {
     const r = new FileReader();
     r.onload = ev => {
       try {
         const data = JSON.parse(ev.target.result);
         if (typeof data !== 'object' || Array.isArray(data)) throw new Error('Format tidak valid');
-        
         visPresets = { ...visPresets, ...data };
-        localStorage.setItem('wp_presets', JSON.stringify(visPresets));
-        refreshVisPresetList();
-        
-        fetch('/api/save_preset', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        }).catch(() => {});
-        
+        localStorage.setItem('wp_presets', JSON.stringify(visPresets)); refreshVisPresetList();
+        fetch('/api/save_preset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).catch(() => {});
         toast('Preset berhasil di-import! 📥', 'success');
-
         const keys = Object.keys(data);
-        if (keys.length > 0) {
-          const newPresetName = keys[0];
-          const sel = document.getElementById('vis-preset-load');
-          if(sel) sel.value = newPresetName;
-          loadVisPreset(newPresetName);
-        }
-
+        if (keys.length > 0) { const newP = keys[0]; const sel = document.getElementById('vis-preset-load'); if(sel) sel.value = newP; loadVisPreset(newP); }
       } catch (err) { toast('File JSON tidak valid!', 'error'); }
     };
     r.readAsText(e.target.files[0]);
@@ -1941,36 +1858,19 @@ function importVisPreset() {
 }
 
 function deleteVisPreset() {
-  const sel = document.getElementById('vis-preset-load');
-  const name = sel.value;
+  const sel = document.getElementById('vis-preset-load'); const name = sel.value;
   if (!name) { toast('Pilih preset dari dropdown dulu untuk dihapus!', 'warn'); return; }
   if (!confirm(`Yakin ingin menghapus preset "${name}" secara permanen?`)) return;
-
-  delete visPresets[name];
-  localStorage.setItem('wp_presets', JSON.stringify(visPresets));
-  refreshVisPresetList();
-  
-  fetch('/api/delete_preset', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: name })
-  }).catch(() => {});
-
+  delete visPresets[name]; localStorage.setItem('wp_presets', JSON.stringify(visPresets)); refreshVisPresetList();
+  fetch('/api/delete_preset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name }) }).catch(() => {});
   toast(`Preset "${name}" berhasil dibuang! 🗑️`, 'success');
 }
 
 function refreshVisPresetList() {
-  const sel = document.getElementById('vis-preset-load');
-  const keys = Object.keys(visPresets);
+  const sel = document.getElementById('vis-preset-load'); const keys = Object.keys(visPresets);
   sel.innerHTML = '<option value="">-- Load Preset --</option>' + keys.map(k => `<option value="${k}">${k}</option>`).join('');
-
-  const randList = document.getElementById('random-preset-list');
-  const note = document.getElementById('random-preset-note');
-  if (!keys.length) {
-    randList.innerHTML = '';
-    note.textContent = 'Belum ada preset tersimpan. Simpan dulu di mode Manual.';
-    return;
-  }
+  const randList = document.getElementById('random-preset-list'); const note = document.getElementById('random-preset-note');
+  if (!keys.length) { randList.innerHTML = ''; note.textContent = 'Belum ada preset tersimpan. Simpan dulu di mode Manual.'; return; }
   note.textContent = keys.length + ' preset tersedia. Ceklist yang ingin dimasukkan ke dalam acakan sistem.';
   randList.innerHTML = keys.map(k => `
     <label style="display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);padding:6px 12px;border-radius:20px;cursor:pointer;color:var(--text);">
@@ -1986,78 +1886,36 @@ function onVisModeChange() {
 }
 
 function updatePreviewBackground(yt_id) {
-  const bgVid = document.getElementById('preview_bg_vid');
-  const bgImg = document.getElementById('preview_bg_img');
+  const bgVid = document.getElementById('preview_bg_vid'); const bgImg = document.getElementById('preview_bg_img');
   if (!bgVid || !bgImg) return;
-
-  if (!yt_id || !galleryData.background || !galleryData.background.length) {
-    bgVid.style.display = 'none';
-    bgImg.style.display = 'none';
-    return;
-  }
-
-  const bgFiles = galleryData.background;
-  const randBg = bgFiles[Math.floor(Math.random() * bgFiles.length)].name;
-  const ext = randBg.split('.').pop().toLowerCase();
-  const url = `/uploads/${yt_id}/backgrounds/${randBg}`;
-
-  if (['mp4', 'webm', 'mov'].includes(ext)) {
-    bgImg.style.display = 'none';
-    bgVid.src = url;
-    bgVid.style.display = 'block';
-    bgVid.play().catch(() => {});
-  } else {
-    bgVid.style.display = 'none';
-    bgImg.src = url;
-    bgImg.style.display = 'block';
-  }
+  if (!yt_id || !galleryData.background || !galleryData.background.length) { bgVid.style.display = 'none'; bgImg.style.display = 'none'; return; }
+  const bgFiles = galleryData.background; const randBg = bgFiles[Math.floor(Math.random() * bgFiles.length)].name;
+  const ext = randBg.split('.').pop().toLowerCase(); const url = `/uploads/${yt_id}/backgrounds/${randBg}`;
+  if (['mp4', 'webm', 'mov'].includes(ext)) { bgImg.style.display = 'none'; bgVid.src = url; bgVid.style.display = 'block'; bgVid.play().catch(() => {}); } 
+  else { bgVid.style.display = 'none'; bgImg.src = url; bgImg.style.display = 'block'; }
 }
 
 let prev_bars = null;
 function drawLivePreview() {
   if (vCtx && visCanvas && document.getElementById('panel-batch').classList.contains('active') && document.getElementById('bs-3').style.display !== 'none') {
-    const cw = visCanvas.width; const ch = visCanvas.height; vCtx.clearRect(0, 0, cw, ch);
-    const cfg = getVisConfig();
-    
+    const cw = visCanvas.width; const ch = visCanvas.height; vCtx.clearRect(0, 0, cw, ch); const cfg = getVisConfig();
     if (!prev_bars || prev_bars.length !== cfg.bar_count) prev_bars = new Array(cfg.bar_count).fill(0);
-    
-    const totW = cw * (cfg.width_pct/100); 
-    const barW = Math.max(1, (totW - cfg.spacing * (cfg.bar_count - 1)) / cfg.bar_count);
-    const startX = cw * (cfg.pos_x/100) - totW / 2; 
-    const baseY = ch * (cfg.pos_y/100); 
-    const limitH = ch * (cfg.max_height/100);
-
+    const totW = cw * (cfg.width_pct/100); const barW = Math.max(1, (totW - cfg.spacing * (cfg.bar_count - 1)) / cfg.bar_count);
+    const startX = cw * (cfg.pos_x/100) - totW / 2; const baseY = ch * (cfg.pos_y/100); const limitH = ch * (cfg.max_height/100);
     for (let i = 0; i < cfg.bar_count; i++) {
       const target = limitH * (Math.abs(Math.sin(timeTick / 15 + i * 0.2)) * Math.sin(timeTick / 30 + i) * 0.5 + 0.5) * cfg.reactivity;
-      prev_bars[i] = (prev_bars[i] * 0.85) + (target * 0.15); 
-      const h_val = Math.min(Math.max(cfg.idle_height, prev_bars[i]), limitH);
-      
+      prev_bars[i] = (prev_bars[i] * 0.85) + (target * 0.15); const h_val = Math.min(Math.max(cfg.idle_height, prev_bars[i]), limitH);
       if (h_val > 0) {
-          const x = startX + i * (barW + cfg.spacing);
-          let y1, y2;
-          
-          if (cfg.bar_style === 'center') {
-              y1 = baseY - (h_val / 2);
-              y2 = baseY + (h_val / 2);
-          } else {
-              y1 = baseY - h_val;
-              y2 = baseY;
-          }
-          
+          const x = startX + i * (barW + cfg.spacing); let y1, y2;
+          if (cfg.bar_style === 'center') { y1 = baseY - (h_val / 2); y2 = baseY + (h_val / 2); } else { y1 = baseY - h_val; y2 = baseY; }
           const barGrad = vCtx.createLinearGradient(0, y1, 0, y2);
-          barGrad.addColorStop(0, cfg.color_top);
-          barGrad.addColorStop(1, cfg.color_bot);
-          vCtx.fillStyle = barGrad;
-          
-          vCtx.fillRect(x, y1, barW, h_val);
+          barGrad.addColorStop(0, cfg.color_top); barGrad.addColorStop(1, cfg.color_bot);
+          vCtx.fillStyle = barGrad; vCtx.fillRect(x, y1, barW, h_val);
       }
     }
-    
     vCtx.fillStyle = cfg.color_part;
     for (let p = 0; p < Math.min(cfg.part_amount, 50); p++) {
-      vCtx.beginPath(); 
-      vCtx.arc((Math.sin(timeTick / 40 + p * 10) * cw / 2) + cw / 2, ch - ((timeTick * cfg.part_speed * (1 + p * 0.1)) % ch), 2, 0, Math.PI * 2); 
-      vCtx.fill();
+      vCtx.beginPath(); vCtx.arc((Math.sin(timeTick / 40 + p * 10) * cw / 2) + cw / 2, ch - ((timeTick * cfg.part_speed * (1 + p * 0.1)) % ch), 2, 0, Math.PI * 2); vCtx.fill();
     }
     timeTick++;
   }
@@ -2068,95 +1926,46 @@ function drawLivePreview() {
 //  TASK MONITOR
 // ────────────────────────────────────────────────────────
 function fetchServerTasks() {
-  fetch('/api/get_schedule').then(r => r.json()).then(data => {
-    serverData = data;
-    renderTasks();
-  }).catch(() => {});
+  fetch('/api/get_schedule').then(r => r.json()).then(data => { serverData = data; renderTasks(); }).catch(() => {});
 }
 
 function renderTasks() {
-  const list = document.getElementById('taskList');
-  const hist = document.getElementById('historyTbl');
+  const list = document.getElementById('taskList'); const hist = document.getElementById('historyTbl');
   const allActive = [...browserQueue, ...serverData.active];
-
   document.getElementById('q-badge').textContent = allActive.length + ' aktif';
   const badge = document.getElementById('task-badge');
-  if (allActive.length) { badge.style.display = 'inline'; badge.textContent = allActive.length; }
-  else badge.style.display = 'none';
-
-  document.getElementById('tm-ch').textContent = channels.length;
-  document.getElementById('tm-act').textContent = allActive.length;
-  document.getElementById('tm-done').textContent = (serverData.history || []).length;
-
-  if (!allActive.length) {
-    list.innerHTML = `<div style="text-align:center;padding:24px;color:var(--muted);font-family:var(--font-m);font-size:11px">Tidak ada task aktif.</div>`;
-  } else {
-    list.innerHTML = [
-      ...browserQueue.map(t => `
-        <div class="task-row">
-          <div class="task-icon">📤</div>
-          <div class="task-info">
-            <div class="task-name">${t.judul || 'Task'}</div>
-            <div class="task-meta">${t.jadwal || ''}</div>
-          </div>
-          <span class="pill p-yellow" style="flex-shrink:0">${t.status || 'Menunggu'}</span>
-          <button class="cancel-btn" onclick="cancelBrowserTask(${JSON.stringify(t.id)})">Batalkan</button>
-        </div>`),
-      ...serverData.active.map(t => `
-        <div class="task-row">
-          <div class="task-icon">⚙️</div>
-          <div class="task-info">
-            <div class="task-name">${t.title || 'Task'}</div>
-            <div class="task-meta">${t.time || ''}</div>
-          </div>
-          <span class="pill p-cyan" style="flex-shrink:0;max-width:200px;white-space:normal;line-height:1.3">${t.status || '—'}</span>
-          <button class="stop-btn" onclick="stopTask(${Number(t.id)})">Stop</button>
-        </div>`)
+  if (allActive.length) { badge.style.display = 'inline'; badge.textContent = allActive.length; } else badge.style.display = 'none';
+  document.getElementById('tm-ch').textContent = channels.length; document.getElementById('tm-act').textContent = allActive.length; document.getElementById('tm-done').textContent = (serverData.history || []).length;
+  if (!allActive.length) { list.innerHTML = `<div style="text-align:center;padding:24px;color:var(--muted);font-family:var(--font-m);font-size:11px">Tidak ada task aktif.</div>`; } 
+  else {
+    list.innerHTML = [...browserQueue.map(t => `<div class="task-row"><div class="task-icon">📤</div><div class="task-info"><div class="task-name">${t.judul || 'Task'}</div><div class="task-meta">${t.jadwal || ''}</div></div><span class="pill p-yellow" style="flex-shrink:0">${t.status || 'Menunggu'}</span><button class="cancel-btn" onclick="cancelBrowserTask(${JSON.stringify(t.id)})">Batalkan</button></div>`),
+      ...serverData.active.map(t => `<div class="task-row"><div class="task-icon">⚙️</div><div class="task-info"><div class="task-name">${t.title || 'Task'}</div><div class="task-meta">${t.time || ''}</div></div><span class="pill p-cyan" style="flex-shrink:0;max-width:200px;white-space:normal;line-height:1.3">${t.status || '—'}</span><button class="stop-btn" onclick="stopTask(${Number(t.id)})">Stop</button></div>`)
     ].join('');
   }
-
-  if (!(serverData.history || []).length) {
-    hist.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:16px;color:var(--muted);font-family:var(--font-m);font-size:11px">Belum ada history.</td></tr>`;
-  } else {
+  if (!(serverData.history || []).length) { hist.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:16px;color:var(--muted);font-family:var(--font-m);font-size:11px">Belum ada history.</td></tr>`; } 
+  else {
     hist.innerHTML = serverData.history.map(t => {
       const c = t.status.includes('❌') ? 'var(--accent2)' : 'var(--muted)';
-      return `<tr>
-        <td><span style="font-family:var(--font-m);font-size:10px;color:var(--muted)">#${t.id}</span></td>
-        <td style="font-weight:700">${t.title || '—'}</td>
-        <td style="color:${c};font-weight:600">${t.status}</td>
-      </tr>`;
+      return `<tr><td><span style="font-family:var(--font-m);font-size:10px;color:var(--muted)">#${t.id}</span></td><td style="font-weight:700">${t.title || '—'}</td><td style="color:${c};font-weight:600">${t.status}</td></tr>`;
     }).join('');
   }
   const bnBadge = document.getElementById('bn-badge');
-  if (bnBadge) {
-    if (allActive.length) { bnBadge.style.display = 'block'; bnBadge.textContent = allActive.length; }
-    else bnBadge.style.display = 'none';
-  }
+  if (bnBadge) { if (allActive.length) { bnBadge.style.display = 'block'; bnBadge.textContent = allActive.length; } else bnBadge.style.display = 'none'; }
 }
 
 function stopTask(id) {
   if (!confirm('Hentikan paksa?')) return;
-  fetch('/api/stop_task/' + id, { method: 'POST' })
-    .then(r => r.json())
-    .then(d => { toast(d.message, 'info'); fetchServerTasks(); })
-    .catch(() => toast('Gagal menghentikan task', 'error'));
+  fetch('/api/stop_task/' + id, { method: 'POST' }).then(r => r.json()).then(d => { toast(d.message, 'info'); fetchServerTasks(); }).catch(() => toast('Gagal menghentikan task', 'error'));
 }
 
 function cancelBrowserTask(id) {
   const idx = browserQueue.findIndex(t => t.id === id);
-  if (idx !== -1) {
-    browserQueue.splice(idx, 1);
-    renderTasks();
-    toast('Task dibatalkan', 'info');
-  }
+  if (idx !== -1) { browserQueue.splice(idx, 1); renderTasks(); toast('Task dibatalkan', 'info'); }
 }
 
 function clearHistory() {
   if (!confirm('Bersihkan riwayat?')) return;
-  fetch('/api/clear_history', { method: 'POST' })
-    .then(r => r.json())
-    .then(d => { toast(d.message, 'success'); fetchServerTasks(); })
-    .catch(() => toast('Gagal menghapus riwayat', 'error'));
+  fetch('/api/clear_history', { method: 'POST' }).then(r => r.json()).then(d => { toast(d.message, 'success'); fetchServerTasks(); }).catch(() => toast('Gagal menghapus riwayat', 'error'));
 }
 
 // ────────────────────────────────────────────────────────
@@ -2164,60 +1973,36 @@ function clearHistory() {
 // ────────────────────────────────────────────────────────
 function fetchAnalytics() {
   fetch('/api/get_youtube_analytics').then(r => r.json()).then(data => {
-    analyticsData = data;
-    const f = document.getElementById('analytics_filter');
-    f.innerHTML = '<option value="ALL">⬡ ALL CHANNELS</option>';
-    data.forEach(d => f.innerHTML += `<option value="${d.yt_id}">${d.name}</option>`);
-    renderAnalytics();
+    analyticsData = data; const f = document.getElementById('analytics_filter'); f.innerHTML = '<option value="ALL">⬡ ALL CHANNELS</option>';
+    data.forEach(d => f.innerHTML += `<option value="${d.yt_id}">${d.name}</option>`); renderAnalytics();
   }).catch(() => {});
 }
 
 function renderAnalytics() {
-  const fv = document.getElementById('analytics_filter').value;
-  const monBox = document.getElementById('mon-box');
+  const fv = document.getElementById('analytics_filter').value; const monBox = document.getElementById('mon-box');
   let tV = 0, tS = 0, tW = 0, cL = [], cV = [], cS = [];
   if (fv === 'ALL') {
-    monBox.style.display = 'none';
-    analyticsData.forEach(d => { tV += d.views; tS += d.subs; tW += d.watch_hours; cL.push(d.name); cV.push(d.views); cS.push(d.subs); });
+    monBox.style.display = 'none'; analyticsData.forEach(d => { tV += d.views; tS += d.subs; tW += d.watch_hours; cL.push(d.name); cV.push(d.views); cS.push(d.subs); });
     drawChart('Perbandingan Views & Subs', cL, cV, cS, 'bar');
   } else {
-    monBox.style.display = 'block';
-    const d = analyticsData.find(x => x.yt_id === fv);
+    monBox.style.display = 'block'; const d = analyticsData.find(x => x.yt_id === fv);
     if (d) {
-      tV = d.views; tS = d.subs; tW = d.watch_hours;
-      const pS = Math.min((tS / 1000) * 100, 100);
-      const pW = Math.min((tW / 4000) * 100, 100);
-      document.getElementById('prog-subs').style.width = pS + '%';
-      document.getElementById('prog-watch').style.width = pW + '%';
-      document.getElementById('mon-s-pct').textContent = Math.round(pS) + '%';
-      document.getElementById('mon-w-pct').textContent = Math.round(pW) + '%';
+      tV = d.views; tS = d.subs; tW = d.watch_hours; const pS = Math.min((tS / 1000) * 100, 100); const pW = Math.min((tW / 4000) * 100, 100);
+      document.getElementById('prog-subs').style.width = pS + '%'; document.getElementById('prog-watch').style.width = pW + '%';
+      document.getElementById('mon-s-pct').textContent = Math.round(pS) + '%'; document.getElementById('mon-w-pct').textContent = Math.round(pW) + '%';
       const sb = document.getElementById('mon-status');
-      if (tS >= 1000 && tW >= 4000) { sb.textContent = '🎉 MEMENUHI SYARAT'; sb.className = 'pill p-green'; }
-      else { sb.textContent = '❌ BELUM SYARAT'; sb.className = 'pill p-red'; }
+      if (tS >= 1000 && tW >= 4000) { sb.textContent = '🎉 MEMENUHI SYARAT'; sb.className = 'pill p-green'; } else { sb.textContent = '❌ BELUM SYARAT'; sb.className = 'pill p-red'; }
       drawChart('Statistik: ' + d.name, ['Subscribers', 'Videos'], [d.subs, d.videos], [], 'doughnut');
     }
   }
-  document.getElementById('st-views').textContent = tV.toLocaleString();
-  document.getElementById('st-watch').textContent = tW.toLocaleString();
-  document.getElementById('st-subs').textContent = tS.toLocaleString();
+  document.getElementById('st-views').textContent = tV.toLocaleString(); document.getElementById('st-watch').textContent = tW.toLocaleString(); document.getElementById('st-subs').textContent = tS.toLocaleString();
 }
 
 function drawChart(title, labels, d1, d2, type) {
-  const ctx = document.getElementById('dashChart').getContext('2d');
-  if (chartInstance) chartInstance.destroy();
-  Chart.defaults.color = '#3a5470';
-  Chart.defaults.font.family = 'DM Mono';
-  const dts = type === 'bar'
-    ? [{ label: 'Total Views', data: d1, backgroundColor: '#00d4ff', borderRadius: 5 }, { label: 'Subscribers', data: d2, backgroundColor: '#7c5cfc', borderRadius: 5 }]
-    : [{ data: d1, backgroundColor: ['#00d4ff', '#7c5cfc'], borderWidth: 0 }];
-  chartInstance = new Chart(ctx, {
-    type, data: { labels, datasets: dts },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { title: { display: true, text: title, font: { size: 13, weight: 'bold' }, color: '#c8daea' } },
-      scales: type === 'bar' ? { y: { beginAtZero: true, grid: { color: '#162030' } }, x: { grid: { display: false } } } : {}
-    }
-  });
+  const ctx = document.getElementById('dashChart').getContext('2d'); if (chartInstance) chartInstance.destroy();
+  Chart.defaults.color = '#3a5470'; Chart.defaults.font.family = 'DM Mono';
+  const dts = type === 'bar' ? [{ label: 'Total Views', data: d1, backgroundColor: '#00d4ff', borderRadius: 5 }, { label: 'Subscribers', data: d2, backgroundColor: '#7c5cfc', borderRadius: 5 }] : [{ data: d1, backgroundColor: ['#00d4ff', '#7c5cfc'], borderWidth: 0 }];
+  chartInstance = new Chart(ctx, { type, data: { labels, datasets: dts }, options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: title, font: { size: 13, weight: 'bold' }, color: '#c8daea' } }, scales: type === 'bar' ? { y: { beginAtZero: true, grid: { color: '#162030' } }, x: { grid: { display: false } } } : {} } });
 }
 
 // ────────────────────────────────────────────────────────
@@ -2226,85 +2011,50 @@ function drawChart(title, labels, d1, d2, type) {
 function checkApiStatus() {
   fetch('/api/check_secret?t=' + Date.now()).then(r => r.json()).then(d => {
     const b = document.getElementById('api-badge');
-    if (d.exists) { b.textContent = '🟢 API AKTIF'; b.className = 'pill p-green'; }
-    else { b.textContent = '🔴 BELUM ADA API'; b.className = 'pill p-red'; }
+    if (d.exists) { b.textContent = '🟢 API AKTIF'; b.className = 'pill p-green'; } else { b.textContent = '🔴 BELUM ADA API'; b.className = 'pill p-red'; }
   }).catch(() => {});
 }
 
 function uploadSecret() {
-  const form = document.getElementById('api-form');
-  const fileInput = form.querySelector('input[type=file]');
+  const form = document.getElementById('api-form'); const fileInput = form.querySelector('input[type=file]');
   if (!fileInput.files.length) { toast('Pilih file JSON dulu!', 'warn'); return; }
-  fetch('/api/upload_secret', { method: 'POST', body: new FormData(form) })
-    .then(r => r.json())
-    .then(d => { toast(d.message, 'success'); checkApiStatus(); form.reset(); })
-    .catch(() => toast('Gagal upload API key', 'error'));
+  fetch('/api/upload_secret', { method: 'POST', body: new FormData(form) }).then(r => r.json()).then(d => { toast(d.message, 'success'); checkApiStatus(); form.reset(); }).catch(() => toast('Gagal upload API key', 'error'));
 }
 
 function generateTVLink() {
   fetch('/api/generate_tv_link').then(r => r.json()).then(d => {
-    const box = document.getElementById('tv-box');
-    const msg = document.getElementById('tv-msg');
-    const inp = document.getElementById('tv-url');
+    const box = document.getElementById('tv-box'); const msg = document.getElementById('tv-msg'); const inp = document.getElementById('tv-url');
     box.style.display = 'block';
-    if (d.error) {
-      msg.textContent = d.error;
-      msg.style.color = 'var(--accent2)';
-      inp.style.display = 'none';
-    } else {
-      msg.textContent = 'Copy link ini di profil Chrome channel YouTube target:';
-      msg.style.color = 'var(--accent)';
-      inp.style.display = 'block';
-      inp.value = d.auth_url;
-    }
+    if (d.error) { msg.textContent = d.error; msg.style.color = 'var(--accent2)'; inp.style.display = 'none'; } 
+    else { msg.textContent = 'Copy link ini di profil Chrome channel YouTube target:'; msg.style.color = 'var(--accent)'; inp.style.display = 'block'; inp.value = d.auth_url; }
   }).catch(() => toast('Gagal generate link', 'error'));
 }
 
 function copyTvUrl() {
-  const inp = document.getElementById('tv-url');
-  inp.select();
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(inp.value).then(() => toast('Link disalin!', 'success')).catch(() => {
-      document.execCommand('copy');
-      toast('Link disalin!', 'success');
-    });
-  } else {
-    document.execCommand('copy');
-    toast('Link disalin!', 'success');
-  }
+  const inp = document.getElementById('tv-url'); inp.select();
+  if (navigator.clipboard) { navigator.clipboard.writeText(inp.value).then(() => toast('Link disalin!', 'success')).catch(() => { document.execCommand('copy'); toast('Link disalin!', 'success'); }); } 
+  else { document.execCommand('copy'); toast('Link disalin!', 'success'); }
 }
 
 // ────────────────────────────────────────────────────────
 //  INIT
 // ────────────────────────────────────────────────────────
 function init() {
-  loadChannels();
-  fetchAnalytics();
-  checkApiStatus();
+  loadChannels(); fetchAnalytics(); checkApiStatus();
+  fetch('/api/get_presets').then(r => r.json()).then(d => {
+      if (d && typeof d === 'object' && !Array.isArray(d)) { visPresets = d; } else { visPresets = {}; }
+      localStorage.setItem('wp_presets', JSON.stringify(visPresets)); refreshVisPresetList();
+    }).catch(() => refreshVisPresetList());
+  const now = new Date(); now.setMinutes(0, 0, 0); document.getElementById('bc-start-date').value = now.toISOString().slice(0, 16);
   
-  fetch('/api/get_presets')
-    .then(r => r.json())
-    .then(d => {
-      if (d && typeof d === 'object' && !Array.isArray(d)) {
-        visPresets = d;
-      } else {
-        visPresets = {}; 
-      }
-      localStorage.setItem('wp_presets', JSON.stringify(visPresets));
-      refreshVisPresetList();
-    })
-    .catch(() => refreshVisPresetList());
-
-  const now = new Date();
-  now.setMinutes(0, 0, 0);
-  document.getElementById('bc-start-date').value = now.toISOString().slice(0, 16);
-
-  setInterval(fetchServerTasks, 2000);
-  setInterval(pollSysStats, 3000);
-
+  // Set Intervals
+  setInterval(fetchServerTasks, 2000); 
+  setInterval(pollSysStats, 3000); 
+  setInterval(fetchNotifs, 10000); // Cek notif lonceng tiap 10 detik
+  
+  fetchNotifs(); // Cek langsung saat pertama buka
   drawLivePreview();
 }
-
 document.addEventListener("DOMContentLoaded", init);
 </script>
 </body>
