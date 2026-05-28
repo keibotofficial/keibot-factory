@@ -168,9 +168,10 @@ database_channel = load_channels()
 
 render_queue = queue.Queue()
 stop_flags = {}
-
-# 🔥 VARIABLE GLOBAL PENYIMPAN STATUS BLOKIR/COOLDOWN CHANNEL 🔥
 channel_cooldowns = {} 
+
+# 🔥 SISTEM NOTIFIKASI LONCENG 🔥
+system_notifications = []
 
 def get_ffmpeg_path():
     local_exe = os.path.join(BASE_DIR, "ffmpeg.exe")
@@ -219,6 +220,38 @@ def get_fresh_credentials(channel_data):
     return creds
 
 # ==========================================
+# 🚨 SATPAM API KEY (AUTO-CHECKER)
+# ==========================================
+def api_key_checker_worker():
+    global system_notifications, database_channel
+    while True:
+        time.sleep(10) # Tunggu mesin stabil saat baru nyala
+        new_notifs = []
+        for c in database_channel:
+            creds_list = c.get('creds_list', [c.get('creds_json', '')])
+            for idx, cred_str in enumerate(creds_list):
+                if not cred_str: continue
+                try:
+                    creds = Credentials.from_authorized_user_info(json.loads(cred_str))
+                    if creds.expired and creds.refresh_token:
+                        # Mencoba refresh. Jika token hangus, ini akan memicu Exception
+                        creds.refresh(Request())
+                except Exception as e:
+                    msg = f"⚠️ API Key #{idx+1} untuk Channel '{c.get('name','Unknown')}' EXPIRED! Silakan hapus dan tautkan ulang."
+                    # Mencegah duplikasi pesan yang sama
+                    if not any(n['msg'] == msg for n in system_notifications):
+                        new_notifs.append({"msg": msg, "time": datetime.now().strftime("%Y-%m-%d %H:%M")})
+        
+        if new_notifs:
+            with db_lock:
+                system_notifications.extend(new_notifs)
+                
+        # Satpam tidur, akan keliling patroli lagi setiap 12 Jam (43200 detik)
+        time.sleep(43200)
+
+threading.Thread(target=api_key_checker_worker, daemon=True).start()
+
+# ==========================================
 # 🏭 GALLERY & ASSET MANAGER
 # ==========================================
 def get_channel_folder(yt_id, sub):
@@ -247,10 +280,8 @@ def get_all_audios(yt_id):
 
 def get_and_consume_thumbnail(yt_id):
     path = get_channel_folder(yt_id, "thumbnails")
-    # 🔥 URUT ABJAD: Ambil yang paling atas (misal: 01.jpg, 02.jpg)
     files = sorted([f for f in os.listdir(path) if f.lower().endswith(('.jpg', '.png', '.jpeg'))])
     if not files: return None
-    # Pilih selalu urutan pertama [0]
     return os.path.join(path, files[0])
 
 def get_random_preset(allowed_names=None):
@@ -526,12 +557,20 @@ def background_worker():
         task_id = task['id']
         yt_id = task['yt_id']
         
-        # 🔥 SMART COOLDOWN SYSTEM (AUTO-SKIP JIKA CHANNEL TERKENA LIMIT) 🔥
+        # 🔥 SMART COOLDOWN SYSTEM (PUTAR BALIK ANTREAN) 🔥
         if yt_id in channel_cooldowns:
             if time.time() < channel_cooldowns[yt_id]:
-                sisa_menit = int((channel_cooldowns[yt_id] - time.time()) / 60)
-                move_to_history(task_id, f"Gagal ❌ (Auto-Skip: Limit Channel, Cooldown {sisa_menit} mnt)")
+                sisa_menit = max(1, int((channel_cooldowns[yt_id] - time.time()) / 60))
+                
+                with db_lock:
+                    for d in active_tasks:
+                        if d['id'] == task_id:
+                            d['status'] = f"Antrean Ditunda (Cooldown YT {sisa_menit} mnt) ⏳"
+                save_tasks_db()
+                
+                render_queue.put(task)
                 render_queue.task_done()
+                time.sleep(5) 
                 continue
             else:
                 del channel_cooldowns[yt_id]
@@ -653,7 +692,6 @@ def background_worker():
                     get_ffmpeg_path(), '-y', '-i', base_video, '-c', 'copy', '-t', str(target_sec), final_video
                 ], check=True)
 
-            # 🔥 SISTEM SMART ERROR DETECTOR & AUTO-RETRY UPLOAD 5X 🔥
             if channel_data:
                 creds_list = channel_data.get('creds_list', [channel_data.get('creds_json')])
                 upload_berhasil = False
@@ -698,7 +736,6 @@ def background_worker():
                         req = youtube.videos().insert(part=','.join(body.keys()), body=body, media_body=media)
                         resp = None
                         
-                        # ─── MULA LOOP UPLOAD DENGAN RETRY ───
                         max_retries = 5
                         retry_count = 0
                         
@@ -711,13 +748,11 @@ def background_worker():
                                         for d in active_tasks:
                                             if d['id'] == task_id: d['status'] = f"Mengunggah (Key {index_kunci+1})... {int(status.progress()*100)}% 🚀"
                                     save_tasks_db()
-                                retry_count = 0 # Reset hitungan kalau chunk sukses
+                                retry_count = 0 
                             except HttpError as e:
-                                # Jika error dari YT adalah error permanen (4xx) lemparkan keluar
                                 if e.resp.status < 500:
                                     raise e
                                 else:
-                                    # Jika error 5xx dari Server YT, coba retry
                                     retry_count += 1
                                     if retry_count > max_retries: 
                                         raise Exception("Server YouTube Down/Timeout setelah 5x percobaan.")
@@ -727,7 +762,6 @@ def background_worker():
                                     save_tasks_db()
                                     time.sleep(10)
                             except Exception as e:
-                                # Jika error dari jaringan lokal VPS (Broken Pipe, Timeout)
                                 retry_count += 1
                                 if retry_count > max_retries: 
                                     raise Exception("Koneksi VPS Putus setelah dicoba 5x berturut-turut.")
@@ -736,7 +770,6 @@ def background_worker():
                                         if d['id'] == task_id: d['status'] = f"Koneksi VPS Putus, Auto-Retry ({retry_count}/{max_retries})... 🔌"
                                 save_tasks_db()
                                 time.sleep(10)
-                        # ─── AKHIR LOOP UPLOAD ───
                         
                         video_id = resp.get('id')
                         
@@ -748,7 +781,6 @@ def background_worker():
                                         if d['id'] == task_id: d['status'] = "Memasang Thumbnail... 🖼️"
                                 save_tasks_db()
                                 youtube.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(thumb_path)).execute()
-                                # 🔥 HAPUS THUMBNAIL SETELAH BERHASIL DIPAKAI 🔥
                                 try:
                                     os.remove(thumb_path)
                                 except Exception:
@@ -775,11 +807,11 @@ def background_worker():
                             continue 
                         elif "uploadLimitExceeded" in reason:
                             pesan_error = "Limit Upload Harian Channel Tercapai!"
-                            channel_cooldowns[yt_id] = time.time() + (3600 * 24) # Ban 24 jam
+                            channel_cooldowns[yt_id] = time.time() + (3600 * 24)
                             break
                         elif "rateLimitExceeded" in reason:
                             pesan_error = "Rate Limit (Terlalu Cepat) - Auto Cooldown 30 Menit"
-                            channel_cooldowns[yt_id] = time.time() + 1800 # Ban 30 menit
+                            channel_cooldowns[yt_id] = time.time() + 1800
                             break
                         else:
                             pesan_error = f"Ditolak YT: {reason}"
@@ -788,7 +820,7 @@ def background_worker():
                         err_str = str(e).lower()
                         if "invalid_grant" in err_str or "expired" in err_str or "revoked" in err_str:
                             pesan_error = "Sesi Kedaluwarsa (Tautkan Ulang!)"
-                            channel_cooldowns[yt_id] = time.time() + (3600 * 24) # Ban 24 jam karena percuma dicoba terus
+                            channel_cooldowns[yt_id] = time.time() + (3600 * 24)
                         elif "timeout" in err_str or "connection" in err_str or "broken" in err_str:
                             pesan_error = "Koneksi VPS Putus/Timeout"
                         else:
@@ -797,13 +829,22 @@ def background_worker():
                         
                 if not upload_berhasil:
                     if "API Habis" in pesan_error:
-                        # Semua key habis
                         channel_cooldowns[yt_id] = time.time() + (3600 * 24)
                     raise Exception(pesan_error)
             else:
                 move_to_history(task_id, f"Render Selesai ✅ <a href='/static/final_{task_id}.mp4' target='_blank'>[Download]</a>")
+        
         except Exception as e:
-            move_to_history(task_id, f"Gagal ❌ ({str(e)})")
+            err_msg = str(e)
+            if "Limit" in err_msg or "Cooldown" in err_msg or "Habis" in err_msg:
+                with db_lock:
+                    for d in active_tasks:
+                        if d['id'] == task_id:
+                            d['status'] = f"Gagal Upload, Antre Ulang ({err_msg}) ⏳"
+                save_tasks_db()
+                render_queue.put(task)
+            else:
+                move_to_history(task_id, f"Gagal ❌ ({err_msg})")
         finally:
             for path in temp_files:
                 try: os.remove(path)
@@ -818,6 +859,18 @@ threading.Thread(target=background_worker, daemon=True).start()
 # ==========================================
 @app.route('/')
 def index(): return render_template('index.html')
+
+# 🔥 ENDPOINT LONCENG NOTIFIKASI 🔥
+@app.route('/api/notifications', methods=['GET'])
+def get_notifications():
+    return jsonify(system_notifications)
+
+@app.route('/api/notifications/clear', methods=['POST'])
+def clear_notifications():
+    global system_notifications
+    with db_lock:
+        system_notifications.clear()
+    return jsonify({"status": "success"})
 
 @app.route('/api/get_dashboard_stats')
 def get_dashboard_stats():
