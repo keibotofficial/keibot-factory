@@ -124,7 +124,9 @@ SCOPES = ['https://www.googleapis.com/auth/youtube', 'https://www.googleapis.com
 os.makedirs(BASE_UPLOAD, exist_ok=True)
 os.makedirs(os.path.join(BASE_DIR, 'static'), exist_ok=True)
 
-db_lock = threading.Lock()
+db_lock = threading.RLock()  # 🔥 FIX: RLock (bukan Lock biasa) supaya tidak deadlock saat
+                              # ada 'with db_lock:' bersarang (mis. save_channels() dipanggil
+                              # dari dalam blok 'with db_lock:' lain, seperti di batch_create()).
 
 GALLERY_FOLDER_MAP = {
     'audio':      'audios',
@@ -132,7 +134,8 @@ GALLERY_FOLDER_MAP = {
     'background': 'backgrounds',
     'backgrounds':'backgrounds',
     'thumbnail':  'thumbnails',
-    'thumbnails': 'thumbnails'
+    'thumbnails': 'thumbnails',
+    'base_video': 'base_videos'  # <--- TAMBAHAN FOLDER BARU
 }
 
 def resolve_folder(g_type: str) -> str:
@@ -292,16 +295,22 @@ def get_random_preset(allowed_names=None):
         return random.choice(list(presets.values()))
     except: return None
 
+def safe_num(val, default):
+    try: return float(val) if val != "" and val is not None else default
+    except: return default
+
 # ==========================================
-# ⚙️ CORE ENGINE (VISUALIZER & FFMPEG)
+# ⚙️ CORE ENGINE (VISUALIZER DENGAN 7 MODE)
 # ==========================================
 class AudioBrain:
     def __init__(self):
+        import numpy as np
         self.y = None; self.sr = None; self.onset_env = None; self.has_audio = False
         self.duration = 0.0
 
     def load(self, path, max_duration=None):
         try:
+            import librosa
             self.y, self.sr = librosa.load(path, sr=22050, mono=True, duration=max_duration)
             self.onset_env = librosa.onset.onset_strength(y=self.y, sr=self.sr)
             self.duration = len(self.y) / self.sr
@@ -310,22 +319,30 @@ class AudioBrain:
             print(f"Audio Error: {e}")
 
     def get_data(self, t, n_bars=64): 
+        import numpy as np
+        n_bars = int(n_bars) # Pastikan selalu angka bulat
         if not self.has_audio: return 0.0, False, np.zeros(n_bars)
+        
         idx = int(t * self.sr)
         if idx >= len(self.y): return 0.0, False, np.zeros(n_bars)
 
-        try: chunk = self.y[idx:idx+1024]; vol = np.sqrt(np.mean(chunk**2)) * 10 if len(chunk)>0 else 0
-        except: vol = 0
+        try: 
+            chunk = self.y[idx:idx+1024]
+            vol = np.sqrt(np.mean(chunk**2)) * 10 if len(chunk) > 0 else 0
+        except: 
+            vol = 0
         
         hit = False
         try:
-            if int(idx/512) < len(self.onset_env) and self.onset_env[int(idx/512)] > 2.0: 
+            onset_idx = int(idx/512)
+            if onset_idx < len(self.onset_env) and self.onset_env[onset_idx] > 2.0: 
                 hit = True
         except: pass
 
         final_bars = np.zeros(n_bars)
         try:
-            n_fft = 2048; fft_data = self.y[idx:idx+n_fft]
+            n_fft = 2048
+            fft_data = self.y[idx:idx+n_fft]
             if len(fft_data) == n_fft:
                 windowed_data = fft_data * np.hanning(n_fft)
                 spec = np.abs(np.fft.rfft(windowed_data))
@@ -333,7 +350,7 @@ class AudioBrain:
                 ls = len(usable)
                 
                 if ls > 0:
-                    half_n = n_bars // 2
+                    half_n = max(1, n_bars // 2) # Pengaman dari pembagian nol
                     raw_bars = np.zeros(half_n)
                     for i in range(half_n):
                         s = int((i / half_n) * ls)
@@ -345,9 +362,13 @@ class AudioBrain:
                     smooth_half = np.convolve(raw_bars, np.ones(3)/3, mode='same')
                     final_bars = np.concatenate((smooth_half[::-1], smooth_half))
                     
-                    if len(final_bars) < n_bars: final_bars = np.append(final_bars, 0)
-                    elif len(final_bars) > n_bars: final_bars = final_bars[:n_bars]
-        except: pass
+                    # Pengaman dimensi array anti-crash
+                    if len(final_bars) < n_bars: 
+                        final_bars = np.pad(final_bars, (0, n_bars - len(final_bars)), 'constant')
+                    elif len(final_bars) > n_bars: 
+                        final_bars = final_bars[:n_bars]
+        except Exception: 
+            pass # Abaikan error matematika agar server tidak mati
                 
         return vol, hit, final_bars
 
@@ -377,108 +398,524 @@ class BackgroundManager:
 
 class VisualEngine:
     def __init__(self, c_bot, c_top, c_part):
+        import numpy as np
         self.col_bot = (c_bot[2], c_bot[1], c_bot[0])
         self.col_top = (c_top[2], c_top[1], c_top[0])
         self.col_part = (c_part[2], c_part[1], c_part[0])
         self.bar_h = None
+        self.particles = []
         
+        # Generator Gradien Kustom Asli Bos K
         self.grad = np.zeros((1000, 1, 3), dtype=np.uint8)
         for c in range(3): 
             self.grad[:, 0, c] = np.linspace(self.col_top[c], self.col_bot[c], 1000)
             
-        self.particles = []
+        self.bar_h_h = None
+        self.radial_h = None
+        self.wave_points = None
+        self.line_h = None
+        self.band_h = None
+        self.frame_count = 0
+        self.rainbow_palette = []
 
-    def process(self, frame, vol, is_hit, bars, cfg):
+    def _init_rainbow(self, n):
+        import numpy as np
+        import cv2
+        if len(self.rainbow_palette) != n:
+            self.rainbow_palette = []
+            for i in range(n):
+                hue = int((i / n) * 179) # Rentang Hue OpenCV 0-179
+                color_hsv = np.uint8([[[hue, 255, 255]]])
+                bgr = cv2.cvtColor(color_hsv, cv2.COLOR_HSV2BGR)[0][0]
+                self.rainbow_palette.append((int(bgr[0]), int(bgr[1]), int(bgr[2])))
+
+    def get_color(self, i, n, mode):
+        if mode == 'rainbow':
+            if not self.rainbow_palette: return (255,255,255)
+            # 🔥 SUNTIK KEBAL: Sesuaikan rasio agar tidak pernah Out of Range
+            ratio = max(0.0, min(1.0, i / max(1, n)))
+            idx = int(ratio * (len(self.rainbow_palette) - 1))
+            idx = max(0, min(len(self.rainbow_palette) - 1, idx))
+            return self.rainbow_palette[idx]
+        else:
+            ratio = max(0.0, min(1.0, i / max(1, n)))
+            idx = max(0, min(999, int(ratio * 999)))
+            c = self.grad[idx, 0]
+            return (int(c[0]), int(c[1]), int(c[2]))
+
+    # ========== VERTICAL BARS (BOTTOM & CENTER) ==========
+    def draw_vertical_bars(self, frame, glow_canvas, bars, cfg, current_px, current_py, current_wp):
+        import cv2, numpy as np
         h, w = frame.shape[:2]
         n = len(bars)
-        if self.bar_h is None or len(self.bar_h) != n: 
-            self.bar_h = np.zeros(n)
+        max_h = h * (cfg.get('max_height', 40) / 100)
+        idle, space = int(cfg.get('idle_height', 5)), int(cfg.get('spacing', 3))
+        bar_style = cfg.get('bar_style', 'bottom')
+        color_mode = cfg.get('color_mode', 'gradient')
+        
+        tot_w = w * current_wp
+        bar_w = max(1, int((tot_w - (space * (n - 1))) / n))
+        start_x = int(w * current_px) - int(tot_w / 2)
+        base_y = int(h * current_py)
+        
+        if self.bar_h is None or len(self.bar_h) != n: self.bar_h = np.zeros(n)
+        
+        for i in range(n):
+            target = bars[i] * cfg.get('reactivity', 0.66)
+            self.bar_h[i] = (self.bar_h[i] * 0.85) + (target * 0.15)
+            height = max(2, int(max(idle, self.bar_h[i] * max_h)))
             
+            x1 = start_x + i * (bar_w + space)
+            x2 = x1 + bar_w
+            y1 = (base_y - (height // 2)) if bar_style == 'center' else base_y - height
+            y2 = (base_y + (height // 2)) if bar_style == 'center' else base_y
+            
+            x1_safe, x2_safe = max(0, min(w, x1)), max(0, min(w, x2))
+            y1_safe, y2_safe = max(0, min(h, y1)), max(0, min(h, y2))
+            
+            if x2_safe > x1_safe and y2_safe > y1_safe:
+                # 🔥 BARU: Gradasi Warna Tiang dari Bawah ke Atas 🔥
+                for y in range(y1_safe, y2_safe):
+                    # Hitung jarak piksel ini dari garis bawah (base_y)
+                    dist = abs(base_y - y) if bar_style == 'center' else (base_y - y)
+                    color = self.get_color(dist, max_h, color_mode)
+                    # Gambar per baris piksel
+                    cv2.line(glow_canvas, (x1_safe, y), (x2_safe - 1, y), color, 1)
+                    
+                core_w = max(1, int((x2_safe - x1_safe) * 0.5))
+                offset = ((x2_safe - x1_safe) - core_w) // 2
+                cv2.rectangle(frame, (x1_safe + offset, y1_safe), (x1_safe + offset + core_w, y2_safe), (255,255,255), -1)
+
+    # ========== HORIZONTAL BARS ==========
+    def draw_horizontal_bars(self, frame, glow_canvas, bars, cfg, current_px, current_py, current_wp):
+        import cv2, numpy as np
+        h, w = frame.shape[:2]
+        n = len(bars)
+        max_h = h * (cfg.get('max_height', 40) / 100)
+        idle, space = int(cfg.get('idle_height', 5)), int(cfg.get('spacing', 3))
+        color_mode = cfg.get('color_mode', 'gradient')
+        
+        tot_h = h * current_wp
+        bar_h = max(1, int((tot_h - (space * (n - 1))) / n))
+        start_y = int(h * current_py) - int(tot_h / 2)
+        base_x = int(w * current_px)
+        
+        if self.bar_h_h is None or len(self.bar_h_h) != n: self.bar_h_h = np.zeros(n)
+        
+        for i in range(n):
+            target = bars[i] * cfg.get('reactivity', 0.66)
+            self.bar_h_h[i] = (self.bar_h_h[i] * 0.85) + (target * 0.15)
+            width = max(2, int(max(idle, self.bar_h_h[i] * max_h)))
+            
+            y1, y2 = start_y + i * (bar_h + space), start_y + i * (bar_h + space) + bar_h
+            x1, x2 = base_x - width, base_x
+            
+            x1_safe, x2_safe = max(0, min(w, x1)), max(0, min(w, x2))
+            y1_safe, y2_safe = max(0, min(h, y1)), max(0, min(h, y2))
+            
+            if x2_safe > x1_safe and y2_safe > y1_safe:
+                color = self.get_color(i, n, color_mode)
+                cv2.rectangle(glow_canvas, (x1_safe, y1_safe), (x2_safe, y2_safe), color, -1)
+                core_h = max(1, int((y2_safe - y1_safe) * 0.5))
+                offset = ((y2_safe - y1_safe) - core_h) // 2
+                cv2.rectangle(frame, (x1_safe, y1_safe + offset), (x2_safe, y1_safe + offset + core_h), (255,255,255), -1)
+
+    
+    # ========== CIRCULAR (MELINGKAR - GAYA LED) ==========
+    def draw_circle_bars(self, frame, glow_canvas, bars, cfg, rotation, current_px, current_py, current_wp, vol=0):
+        import cv2, math, numpy as np
+        h, w = frame.shape[:2]
+        n = len(bars)
+        if n == 0: return
+
+        max_h = h * (cfg.get('max_height', 40) / 100)
+        idle = int(cfg.get('idle_height', 5))
+        idle = min(idle, max_h)
+        color_mode = cfg.get('color_mode', 'gradient')
+
+        tot_w = w * current_wp
+        bar_w = max(1, int((tot_w - (cfg.get('spacing', 3) * (n - 1))) / n))
+        center_x, center_y = int(w * current_px), int(h * current_py)
+        base_radius = min(tot_w, max_h) * 0.35
+
+        if self.bar_h is None or len(self.bar_h) != n:
+            self.bar_h = np.zeros(n)
+
+        beat_scale = 1.0 + (min(vol, 3.0) * 0.15) if cfg.get('enable_logo_pulse', True) else 1.0
+        dynamic_radius = base_radius * beat_scale
+
+        ring_color = self.get_color(int(n / 2), n, color_mode)
+        cv2.circle(glow_canvas, (center_x, center_y), int(dynamic_radius), ring_color, 4, cv2.LINE_AA)
+        cv2.circle(frame, (center_x, center_y), int(dynamic_radius), (255, 255, 255), 2, cv2.LINE_AA)
+
+        # 🔥 PERBAIKAN: RUMUS SKALA 1080p AGAR LED TIDAK MENGGUMPAL 🔥
+        scale_f = h / 1080.0
+        seg_h = max(2, int(18 * scale_f))     # Diperpanjang agar proporsional di 1080p
+        seg_gap = max(1, int(10 * scale_f))   # Jarak direnggangkan agar tidak nempel
+        max_segs = max(1, int(max_h / (seg_h + seg_gap)))
+        
+        # Ketebalan ditipiskan agar tidak tabrakan menjadi gumpalan
+        thick_glow = max(2, int(bar_w * 0.4))
+        thick_core = max(1, int(bar_w * 0.2))
+
+        for i in range(n):
+            target = bars[i] * cfg.get('reactivity', 0.66)
+            self.bar_h[i] = (self.bar_h[i] * 0.85) + (target * 0.15)
+            height = max(int(15 * scale_f), int(max(idle, self.bar_h[i] * max_h)))
+            
+            num_segs = int(height / (seg_h + seg_gap))
+            if num_segs < 1: num_segs = 1
+
+            angle = (i / n) * math.pi * 2 + (math.pi / 2) + rotation
+
+            for s in range(num_segs):
+                r1 = dynamic_radius + (s * (seg_h + seg_gap))
+                r2 = r1 + seg_h
+                
+                x1 = int(center_x + math.cos(angle) * r1)
+                y1 = int(center_y + math.sin(angle) * r1)
+                x2 = int(center_x + math.cos(angle) * r2)
+                y2 = int(center_y + math.sin(angle) * r2)
+
+                color = self.get_color(s, max_segs, color_mode)
+
+                cv2.line(glow_canvas, (x1, y1), (x2, y2), color, thick_glow, cv2.LINE_AA)
+                cv2.line(frame, (x1, y1), (x2, y2), color, thick_core, cv2.LINE_AA)
+
+        print(">> Circle bars DIPASTIKAN muncul. Jumlah bar:", n)
+
+    
+    
+    # ========== LED EQUALIZER (BALOK PUTUS-PUTUS) ==========
+    def draw_led_eq(self, frame, glow_canvas, bars, cfg, current_px, current_py, current_wp):
+        import cv2, numpy as np
+        h, w = frame.shape[:2]
+        n = len(bars)
+        max_h = h * (cfg.get('max_height', 40) / 100)
+        idle, space = int(cfg.get('idle_height', 5)), int(cfg.get('spacing', 3))
+        color_mode = cfg.get('color_mode', 'gradient')
+        
+        tot_w = w * current_wp
+        bar_w = max(1, int((tot_w - (space * (n - 1))) / n))
+        start_x = int(w * current_px) - int(tot_w / 2)
+        base_y = int(h * current_py)
+        
+        # 🔥 1. BALOK PUTUS-PUTUS DIBUAT LEBIH KECIL 🔥
+        seg_h = 3     # Tinggi per balok (sebelumnya 6 atau 4)
+        seg_gap = 2   # Jarak antar balok
+        max_segs = max(1, int(max_h / (seg_h + seg_gap)))
+        
+        if self.bar_h is None or len(self.bar_h) != n: self.bar_h = np.zeros(n)
+        
+        for i in range(n):
+            target = bars[i] * cfg.get('reactivity', 0.66)
+            self.bar_h[i] = (self.bar_h[i] * 0.85) + (target * 0.15)
+            height = max(10, int(max(idle, self.bar_h[i] * max_h)))
+            
+            num_segs = int(height / (seg_h + seg_gap))
+            if num_segs < 1: num_segs = 1
+            
+            x1 = start_x + i * (bar_w + space)
+            x2 = x1 + bar_w
+            x1_s, x2_s = max(0, min(w, x1)), max(0, min(w, x2))
+            
+            # 🔥 2. GRADASI WARNA KE SAMPING (Per Bar 'i'), BUKAN KE ATAS 🔥
+            color = self.get_color(i, n, color_mode)
+            
+            for s in range(num_segs):
+                y2 = base_y - (s * (seg_h + seg_gap))
+                y1 = y2 - seg_h
+                
+                y1_s, y2_s = max(0, min(h, y1)), max(0, min(h, y2))
+                
+                if x2_s > x1_s and y2_s > y1_s:
+                    cv2.rectangle(glow_canvas, (x1_s, y1_s), (x2_s, y2_s), color, -1)
+                    cv2.rectangle(frame, (x1_s, y1_s), (x2_s, y2_s), color, -1)
+
+    # ========== SPECTRUM BAR DI SEMUA SISI LAYAR (ATAS/BAWAH/KIRI/KANAN) ==========
+    def draw_spectrum_edge(self, frame, glow_canvas, bars, cfg):
+        import cv2, numpy as np
+        h, w = frame.shape[:2]
+        n = len(bars)
+        if n == 0:
+            return
+
+        # Batasi maksimal max_height ke 45% agar tidak mengambil seluruh ruang layar 
+        # (jika mencapai 50%, margin tengah akan habis dan error).
+        pct = min(45, cfg.get('max_height', 40)) / 100
+        max_h = int(h * pct)   # panjang maksimal bar atas & bawah
+        max_w = int(w * pct)   # panjang maksimal bar kiri & kanan
+        idle = int(cfg.get('idle_height', 5))
+        space = int(cfg.get('spacing', 3))
+        color_mode = cfg.get('color_mode', 'gradient')
+        reactivity = cfg.get('reactivity', 0.66)
+
+        # 1. PERBAIKAN: Mencegah tabrakan antar sisi dengan memberikan margin di sudut.
+        margin_x = max_w  # Ruang kosong di kiri & kanan untuk bar horizontal
+        margin_y = max_h  # Ruang kosong di atas & bawah untuk bar vertikal
+        avail_w = w - (2 * margin_x)
+        avail_h = h - (2 * margin_y)
+
+        # 2. PERBAIKAN: Mengurutkan bars agar High Beat (frekuensi rendah/index awal) 
+        #    berada di TENGAH, dan sisa frekuensinya menyebar ke pinggir.
+        centered_bars = np.zeros(n)
+        mid = n // 2
+        for i in range(n):
+            if i % 2 == 0:
+                centered_bars[mid + (i // 2)] = bars[i]
+            else:
+                centered_bars[mid - (i // 2) - 1] = bars[i]
+
+        if getattr(self, 'bar_h_edge_v', None) is None or len(self.bar_h_edge_v) != n:
+            self.bar_h_edge_v = np.zeros(n)
+        if getattr(self, 'bar_h_edge_h', None) is None or len(self.bar_h_edge_h) != n:
+            self.bar_h_edge_h = np.zeros(n)
+
+        # ---- ATAS & BAWAH (bar tersebar di area tengah layar secara horizontal) ----
+        bar_w = max(1, int((avail_w - (space * (n - 1))) / n))
+        for i in range(n):
+            target = centered_bars[i] * reactivity  # Menggunakan centered_bars
+            self.bar_h_edge_v[i] = (self.bar_h_edge_v[i] * 0.85) + (target * 0.15)
+            height = max(2, int(max(idle, self.bar_h_edge_v[i] * max_h)))
+
+            # Start X sekarang ditambahkan dengan margin_x
+            x1 = margin_x + i * (bar_w + space)
+            x2 = x1 + bar_w
+            x1s, x2s = max(0, min(w, x1)), max(0, min(w, x2))
+            if x2s <= x1s:
+                continue
+
+            # BAWAH: dari tepi bawah nongol ke atas
+            y1b, y2b = max(0, h - height), h
+            for y in range(y1b, y2b):
+                color = self.get_color(y2b - y, max_h, color_mode)
+                cv2.line(glow_canvas, (x1s, y), (x2s - 1, y), color, 1)
+            core_w = max(1, int((x2s - x1s) * 0.5))
+            off_x = ((x2s - x1s) - core_w) // 2
+            cv2.rectangle(frame, (x1s + off_x, y1b), (x1s + off_x + core_w, y2b), (255, 255, 255), -1)
+
+            # ATAS: dari tepi atas nongol ke bawah
+            y1t, y2t = 0, min(h, height)
+            for y in range(y1t, y2t):
+                color = self.get_color(y - y1t, max_h, color_mode)
+                cv2.line(glow_canvas, (x1s, y), (x2s - 1, y), color, 1)
+            cv2.rectangle(frame, (x1s + off_x, y1t), (x1s + off_x + core_w, y2t), (255, 255, 255), -1)
+
+        # ---- KIRI & KANAN (bar tersebar di area tengah layar secara vertikal) ----
+        bar_h_seg = max(1, int((avail_h - (space * (n - 1))) / n))
+        for i in range(n):
+            target = centered_bars[i] * reactivity  # Menggunakan centered_bars
+            self.bar_h_edge_h[i] = (self.bar_h_edge_h[i] * 0.85) + (target * 0.15)
+            length = max(2, int(max(idle, self.bar_h_edge_h[i] * max_w)))
+
+            # Start Y sekarang ditambahkan dengan margin_y
+            y1 = margin_y + i * (bar_h_seg + space)
+            y2 = y1 + bar_h_seg
+            y1s, y2s = max(0, min(h, y1)), max(0, min(h, y2))
+            if y2s <= y1s:
+                continue
+
+            # KIRI: dari tepi kiri nongol ke kanan
+            x1l, x2l = 0, min(w, length)
+            for x in range(x1l, x2l):
+                color = self.get_color(x - x1l, max_w, color_mode)
+                cv2.line(glow_canvas, (x, y1s), (x, y2s - 1), color, 1)
+            core_h = max(1, int((y2s - y1s) * 0.5))
+            off_y = ((y2s - y1s) - core_h) // 2
+            cv2.rectangle(frame, (x1l, y1s + off_y), (x2l, y1s + off_y + core_h), (255, 255, 255), -1)
+
+            # KANAN: dari tepi kanan nongol ke kiri
+            x1r, x2r = max(0, w - length), w
+            for x in range(x1r, x2r):
+                color = self.get_color(x2r - x, max_w, color_mode)
+                cv2.line(glow_canvas, (x, y1s), (x, y2s - 1), color, 1)
+            cv2.rectangle(frame, (x1r, y1s + off_y), (x2r, y1s + off_y + core_h), (255, 255, 255), -1)
+
+    # ========== MAIN PROCESS ENGINE ==========
+    def process(self, frame, vol, is_hit, bars, cfg):
+        import numpy as np
+        import math
+        import cv2
+        import urllib.request
+        import os
+        
         def safe_num(val, default):
             try: return float(val) if val != "" and val is not None else default
             except: return default
-            
-        react = safe_num(cfg.get('reactivity'), 0.66)
-        idle = int(safe_num(cfg.get('idle_height'), 5))
-        space = int(safe_num(cfg.get('spacing'), 3))
-        px = safe_num(cfg.get('pos_x'), 50)/100
-        py = safe_num(cfg.get('pos_y'), 85)/100
-        wp = safe_num(cfg.get('width_pct'), 60)/100
-        max_h = h * (safe_num(cfg.get('max_height'), 40)/100)
-        p_amt = int(safe_num(cfg.get('part_amount'), 3))
-        p_spd = safe_num(cfg.get('part_speed'), 1.0)
+
+        self.frame_count += 1
+        rot_speed = safe_num(cfg.get('rotation_speed', 2), 2) * 0.01
+        rotation_offset = self.frame_count * rot_speed
+
+        # 🔥 FITUR BARU: BACKGROUND ZOOM BASS (JEDAG-JEDUG BERDASARKAN SLIDER) 🔥
+        enable_bg_pulse = cfg.get('enable_bg_pulse', True)
+        bg_zoom_pct = float(cfg.get('bg_zoom', 5.0)) # <-- Mengambil nilai slider dari web
+        
+        if enable_bg_pulse and vol > 0 and bg_zoom_pct > 0:
+            bg_scale = 1.0 + (min(vol, 3.0) * (bg_zoom_pct / 100.0))
+            if bg_scale > 1.001:
+                h, w = frame.shape[:2]
+                new_w, new_h = int(w * bg_scale), int(h * bg_scale)
+                resized_bg = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+                # Crop kembali ke ukuran asli (tengah)
+                y_offset = (new_h - h) // 2
+                x_offset = (new_w - w) // 2
+                frame = resized_bg[y_offset:y_offset+h, x_offset:x_offset+w]
+
         bar_style = cfg.get('bar_style', 'bottom')
-        smooth = safe_num('smoothing', 0.90) 
+        n = len(bars)
+        self._init_rainbow(n)
         
-        for i in range(n):
-            target = bars[i] * react
-            self.bar_h[i] = (self.bar_h[i] * smooth) + (target * (1 - smooth))
-            self.bar_h[i] = max(0, self.bar_h[i])
-            
-        tot_w = w * wp
-        bar_w = int(max(1, (tot_w - (space * (n-1))) / n))
-        s_x = int((w * px) - (tot_w / 2))
-        b_y = int(h * py)
-        
-        for i in range(n):
-            height = int(max(idle, min(max_h, self.bar_h[i] * max_h)))
-            if height <= 0: continue
-            
-            x1 = s_x + (i * (bar_w + space))
-            x2 = x1 + bar_w
-            
-            if bar_style == 'center':
-                y1 = b_y - (height // 2)
-                y2 = b_y + (height // 2)
+        # ACAKAN GOLDEN RATIO AMAN (TIDAK DISENTUH)
+        scattered_bars = np.zeros(n)
+        if bar_style in ['bottom', 'center', 'circle', 'radial', 'horizontal', 'frequency_bands', 'led_eq']:
+            for i in range(n):
+                fraction = (i * 0.618033988749895) % 1.0
+                source_idx = int(fraction * n)
+                source_idx = max(0, min(n - 1, source_idx))
+                scattered_bars[i] = bars[source_idx]
+        else:
+            scattered_bars = np.copy(bars)
+
+        glow_canvas = np.zeros_like(frame)
+
+        is_double = cfg.get('vis_instance', 'single') == 'double'
+        instances = 2 if is_double else 1
+
+        for inst in range(instances):
+            px = safe_num(cfg.get('pos_x' if inst == 0 else 'pos_x2', 25 if inst == 0 else 75), 50)/100
+            py = safe_num(cfg.get('pos_y' if inst == 0 else 'pos_y2', 85), 85)/100
+            wp = (cfg.get('width_pct', 60) * 0.45 / 100) if is_double else (cfg.get('width_pct', 60)/100)
+
+            if bar_style == 'horizontal':
+                self.draw_horizontal_bars(frame, glow_canvas, scattered_bars, cfg, px, py, wp)
+            elif bar_style == 'led_eq':
+                self.draw_led_eq(frame, glow_canvas, scattered_bars, cfg, px, py, wp)
+            elif bar_style == 'circle':
+                self.draw_circle_bars(frame, glow_canvas, scattered_bars, cfg, rotation_offset, px, py, wp, vol)
+            elif bar_style == 'spectrum_edge':
+                pass  # digambar sekali di luar loop instance (posisi fix di pinggir layar)
             else:
-                y1 = b_y - height
-                y2 = b_y
-            
-            x1_safe = max(0, min(w, x1))
-            x2_safe = max(0, min(w, x2))
-            y1_safe = max(0, min(h, y1))
-            y2_safe = max(0, min(h, y2))
-            
-            w_safe = x2_safe - x1_safe
-            h_safe = y2_safe - y1_safe
-            
-            if w_safe > 0 and h_safe > 0:
-                bar_grad = cv2.resize(self.grad, (bar_w, height))
-                y_offset = y1_safe - y1
-                x_offset = x1_safe - x1
-                bar_grad_cropped = bar_grad[y_offset : y_offset + h_safe, x_offset : x_offset + w_safe]
-                frame[y1_safe:y2_safe, x1_safe:x2_safe] = bar_grad_cropped
-                
-        if p_amt > 0:
+                self.draw_vertical_bars(frame, glow_canvas, scattered_bars, cfg, px, py, wp)
+
+        if bar_style == 'spectrum_edge':
+            self.draw_spectrum_edge(frame, glow_canvas, scattered_bars, cfg)
+
+        if cfg.get('enable_glow', False):
+            g_int = int(safe_num(cfg.get('glow_intensity', 15), 15))
+            if g_int % 2 == 0: g_int = max(1, g_int - 1)
+            glow_canvas = cv2.GaussianBlur(glow_canvas, (g_int, g_int), 0)
+            frame = cv2.addWeighted(frame, 1.0, glow_canvas, 0.9, 0)
+        
+        # Style berbasis lingkaran (cuma 'circle' sekarang) pakai mask lingkaran paksa
+        if bar_style in ['circle']:
+            if getattr(self, 'logo', None) is None and not getattr(self, 'logo_checked', False):
+                self.logo_checked = True
+                logo_url = cfg.get('logo_url', '')
+                img_data = None
+                if logo_url and logo_url.startswith('http'):
+                    try:
+                        req = urllib.request.urlopen(logo_url)
+                        arr = np.asarray(bytearray(req.read()), dtype=np.uint8)
+                        img_data = cv2.imdecode(arr, cv2.IMREAD_UNCHANGED)
+                    except: pass
+                if img_data is None and os.path.exists('static/logo.png'):
+                    img_data = cv2.imread('static/logo.png', cv2.IMREAD_UNCHANGED)
+                if img_data is not None:
+                    if len(img_data.shape) == 3 and img_data.shape[2] == 3:
+                        img_data = cv2.cvtColor(img_data, cv2.COLOR_BGR2BGRA)
+                    h_img, w_img = img_data.shape[:2]
+                    mask = np.zeros((h_img, w_img), dtype=np.uint8)
+                    cv2.circle(mask, (w_img//2, h_img//2), min(w_img, h_img)//2, 255, -1)
+                    img_data[:, :, 3] = mask
+                    self.logo = img_data
+
+            if getattr(self, 'logo', None) is not None:
+                h, w = frame.shape[:2]
+                for inst in range(instances):
+                    px = safe_num(cfg.get('pos_x' if inst == 0 else 'pos_x2', 25 if inst == 0 else 75), 50)/100
+                    py = safe_num(cfg.get('pos_y' if inst == 0 else 'pos_y2', 85), 85)/100
+                    center_x, center_y = int(w * px), int(h * py)
+                    max_h = h * (cfg.get('max_height', 40)/100)
+                    wp = (cfg.get('width_pct', 60) * 0.45 / 100) if is_double else (cfg.get('width_pct', 60) / 100)
+                    
+                    # PENTING: pakai `vol` asli (parameter process()), sama seperti ring & style 'circle'
+                    beat_scale = 1.0 + (min(vol, 3.0) * 0.15) if cfg.get('enable_logo_pulse', True) else 1.0
+                    dynamic_radius = min(w * wp, max_h) * 0.35 * beat_scale
+                    logo_size = int(dynamic_radius * 2) 
+                    
+                    if logo_size > 0:
+                        logo_resized = cv2.resize(self.logo, (logo_size, logo_size))
+                        y1_l, x1_l = int(center_y - logo_size // 2), int(center_x - logo_size // 2)
+                        y2_l, x2_l = y1_l + logo_size, x1_l + logo_size
+                        if y1_l >= 0 and y2_l <= h and x1_l >= 0 and x2_l <= w:
+                            alpha_s = logo_resized[:, :, 3] / 255.0
+                            alpha_l = 1.0 - alpha_s
+                            for c in range(3):
+                                frame[y1_l:y2_l, x1_l:x2_l, c] = (alpha_s * logo_resized[:, :, c] + alpha_l * frame[y1_l:y2_l, x1_l:x2_l, c])
+                                
+        part_amount = int(safe_num(cfg.get('part_amount', 3), 3))
+        if part_amount > 0:
+            h, w = frame.shape[:2]
+            part_size_mult = safe_num(cfg.get('part_size', 1.0), 1.0)
+            part_color_mode = cfg.get('part_color_mode', 'solid')
+            part_effect = cfg.get('part_effect', 'circle')
+            part_opacity = max(0.0, min(1.0, safe_num(cfg.get('part_opacity', 100), 100) / 100.0))
+
             if is_hit and vol > 1.5:
-                 for _ in range(p_amt):
+                for _ in range(part_amount):
+                    if part_color_mode == 'rgb':
+                        hue = np.random.randint(0, 180)
+                        hsv = np.uint8([[[hue, 255, 255]]])
+                        bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)[0][0]
+                        p_color = (int(bgr[0]), int(bgr[1]), int(bgr[2]))
+                    else:
+                        p_color = self.col_part
+                    size0 = np.random.uniform(2, 6) * part_size_mult
                     self.particles.append([
                         np.random.randint(0, w), np.random.randint(0, h),
                         np.random.uniform(-3, 3), np.random.uniform(-3, 3),
-                        np.random.randint(2, 6)
+                        size0, p_color
                     ])
-                    
+
             alive = []
-            spd = 1.0 + (vol * 0.1 * p_spd)
+            spd = 1.0 + (vol * 0.1 * safe_num(cfg.get('part_speed', 1.0), 1.0))
+            overlay = frame.copy()
+            any_alive = False
             for p in self.particles:
-                p[0] += p[2] * spd
-                p[1] += p[3] * spd
-                p[4] -= 0.1
+                p[0] += p[2] * spd; p[1] += p[3] * spd; p[4] -= 0.1
                 if p[4] > 0:
-                    cv2.circle(frame, (int(p[0]), int(p[1])), int(p[4]), self.col_part, -1)
+                    any_alive = True
+                    x, y, size, color = int(p[0]), int(p[1]), max(1, int(p[4])), p[5]
+                    if part_effect == 'spark':
+                        pts = np.array([
+                            [x, y - size], [x + size, y], [x, y + size], [x - size, y]
+                        ], dtype=np.int32)
+                        cv2.fillConvexPoly(overlay, pts, color)
+                    elif part_effect == 'glow':
+                        cv2.circle(overlay, (x, y), max(1, int(size * 1.8)), tuple(int(c * 0.35) for c in color), -1)
+                        cv2.circle(overlay, (x, y), max(1, int(size * 1.1)), tuple(int(c * 0.7) for c in color), -1)
+                        cv2.circle(overlay, (x, y), size, color, -1)
+                    else:
+                        cv2.circle(overlay, (x, y), size, color, -1)
                     alive.append(p)
             self.particles = alive
-                
+            if any_alive and part_opacity > 0:
+                frame[:] = cv2.addWeighted(frame, 1 - part_opacity, overlay, part_opacity, 0)
+            
         return frame
 
 def hex_to_rgb(h): return tuple(int(str(h).lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
 
 def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg):
-    w, h = 1280, 720; fps = 30; total_f = int(duration * fps)
+    # 🔥 1. RESOLUSI FHD 1080p (Lebih Tajam & Jernih) 🔥
+    w, h = 1920, 1080; fps = 30; total_f = int(duration * fps)
+    
     c_bot = hex_to_rgb(cfg.get('color_bot', '#10b981'))
     c_top = hex_to_rgb(cfg.get('color_top', '#0ea5e9'))
     c_part = hex_to_rgb(cfg.get('color_part', '#ffffff'))
     bar_c = int(cfg.get('bar_count', 64))
+    
     vis = VisualEngine(c_bot, c_top, c_part)
     bg = BackgroundManager(bg_paths, w, h)
     audio = AudioBrain(); audio.load(audio_path)
@@ -488,13 +925,41 @@ def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg)
             if d['id'] == task_id: d['status'] = "Rendering Visual & Background... ⚡"
     save_tasks_db()
 
+    # 🔥 2. FILTER ANTI-BURIK (CRF 18 + veryfast) 🔥
     cmd = [
-        get_ffmpeg_path(), '-y', '-threads', '2', 
+        get_ffmpeg_path(), '-y',
         '-f', 'rawvideo', '-vcodec', 'rawvideo', '-s', f'{w}x{h}', '-pix_fmt', 'bgr24', '-r', str(fps), 
         '-i', '-', 
         '-i', audio_path, 
         '-t', str(duration),
-        '-c:v', 'libx264', '-preset', 'fast', '-pix_fmt', 'yuv420p', output_path
+        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-threads', '0', '-pix_fmt', 'yuv420p', output_path
+    ]
+    
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # 🔥 PERINTAH 3: RESOLUSI KEMBALI KE 720p 🔥
+    w, h = 1280, 720; fps = 30; total_f = int(duration * fps)
+    
+    c_bot = hex_to_rgb(cfg.get('color_bot', '#10b981'))
+    c_top = hex_to_rgb(cfg.get('color_top', '#0ea5e9'))
+    c_part = hex_to_rgb(cfg.get('color_part', '#ffffff'))
+    bar_c = int(cfg.get('bar_count', 64))
+    
+    vis = VisualEngine(c_bot, c_top, c_part)
+    bg = BackgroundManager(bg_paths, w, h)
+    audio = AudioBrain(); audio.load(audio_path)
+    
+    with db_lock:
+        for d in active_tasks:
+            if d['id'] == task_id: d['status'] = "Rendering 720p... ⚡"
+    save_tasks_db()
+
+    cmd = [
+        get_ffmpeg_path(), '-y',
+        '-f', 'rawvideo', '-vcodec', 'rawvideo', '-s', f'{w}x{h}', '-pix_fmt', 'bgr24', '-r', str(fps), 
+        '-i', '-', 
+        '-i', audio_path, 
+        '-t', str(duration),
+        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-threads', '0', '-pix_fmt', 'yuv420p', output_path
     ]
     
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -506,33 +971,6 @@ def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg)
                 
             v, is_hit, bars = audio.get_data(f/fps, bar_c)
             frame = vis.process(bg.get_frame(), v, is_hit, bars, cfg)
-
-            if cfg.get('use_floating_card', False) and 'track_schedule' in cfg:
-                sec = f / fps
-                current_track = None
-                for track in cfg['track_schedule']:
-                    if track['start'] <= sec < track['end']:
-                        current_track = track
-                        break
-                
-                if current_track:
-                    t = sec - current_track['start'] 
-                    if t < 10.0:
-                        alpha = (t * 0.85) if t < 1.0 else ((10.0 - t) * 0.85 if t > 9.0 else 0.85)
-                        if alpha > 0.05:
-                            cw, ch = 500, 100
-                            x, y = 40, h - ch - 40
-                            roi = frame[y:y+ch, x:x+cw]
-                            overlay = roi.copy()
-                            cv2.rectangle(overlay, (0, 0), (cw, ch), (30, 20, 15), -1)
-                            cv2.rectangle(overlay, (15, 15), (85, 85), (60, 200, 80), -1)
-                            card_title = current_track['title']
-                            ch_name = cfg.get('channel_name', 'KeiBot FM')
-                            cv2.putText(overlay, card_title[:35], (105, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
-                            cv2.putText(overlay, f"Now Playing . {ch_name}", (105, 75), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180, 180, 180), 1, cv2.LINE_AA)
-                            cv2.putText(overlay, "J", (36, 65), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 3, cv2.LINE_AA)
-                            cv2.addWeighted(overlay, alpha, roi, 1 - alpha, 0, roi)
-
             proc.stdin.write(frame.tobytes())
             
     except Exception as e:
@@ -544,7 +982,7 @@ def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg)
     proc.stdin.close(); proc.wait(); bg.close()
 
 # ==========================================
-# 🚀 BACKGROUND WORKER: OTO-LOOP ULTIMATE
+# 🚀 BACKGROUND WORKER (SUDAH DI-TUNE UP NGEBUT)
 # ==========================================
 def background_worker():
     global channel_cooldowns
@@ -554,20 +992,18 @@ def background_worker():
         task_id = task['id']
         yt_id = task['yt_id']
         
-        # 🔥 SMART COOLDOWN SYSTEM (PUTAR BALIK ANTREAN) 🔥
+        # 🔥 SMART COOLDOWN SYSTEM
         if yt_id in channel_cooldowns:
             if time.time() < channel_cooldowns[yt_id]:
                 sisa_menit = max(1, int((channel_cooldowns[yt_id] - time.time()) / 60))
-                
                 with db_lock:
                     for d in active_tasks:
                         if d['id'] == task_id:
                             d['status'] = f"Antrean Ditunda (Cooldown YT {sisa_menit} mnt) ⏳"
                 save_tasks_db()
-                
                 render_queue.put(task)
                 render_queue.task_done()
-                time.sleep(5) 
+                time.sleep(5)
                 continue
             else:
                 del channel_cooldowns[yt_id]
@@ -588,61 +1024,87 @@ def background_worker():
                     if d['id'] == task_id: d['status'] = "Meracik Aset Gallery... ⚙️"
             save_tasks_db()
 
-            audio_paths = get_all_audios(yt_id)
-            if not audio_paths: raise Exception("Gallery Audio Kosong!")
-            
-            mp3_req = int(task.get('mp3_per_video', 5))
-            mp3_count = min(mp3_req, len(audio_paths))
-            selected_audios = audio_paths[:mp3_count] 
-
-            track_schedule = []
-            current_sec = 0.0
-
+            # ============== AWAL BLOK SUMBER KONTEN (UPDATE) ==============
+            source_mode = task.get('source_mode', 'mix')
             base_audio = os.path.join(BASE_UPLOAD, f"temp_a_{task_id}.mp3")
-            c_txt = os.path.join(BASE_UPLOAD, f"temp_c_{task_id}.txt")
-            with open(c_txt, 'w', encoding='utf-8') as f:
-                for ap in selected_audios:
-                    safe_path = os.path.abspath(ap).replace('\\', '/')
-                    f.write(f"file '{safe_path}'\n")
-                    
-                    probe = subprocess.run([get_ffprobe_path(), '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', ap], capture_output=True, text=True)
-                    try: dur = float(probe.stdout.strip())
-                    except: dur = 0.0
-                    
-                    title = os.path.splitext(os.path.basename(ap))[0]
-                    
-                    track_schedule.append({
-                        'title': title,
-                        'path': safe_path, 
-                        'start': current_sec,
-                        'end': current_sec + dur,
-                        'duration': dur
-                    })
-                    current_sec += dur
+            track_schedule = []
 
-            subprocess.run([get_ffmpeg_path(), '-y', '-threads', '2', '-f', 'concat', '-safe', '0', '-i', c_txt, '-c', 'copy', base_audio], check=True)
+            if source_mode == 'single_video':
+                # --- JALUR BARU: MODE VIDEO UTUH ---
+                with db_lock:
+                    for d in active_tasks:
+                        if d['id'] == task_id: d['status'] = "Mencari & Mengekstrak Audio dari Video... ⚙️"
+                save_tasks_db()
 
-            probe = subprocess.run([
-                get_ffprobe_path(), '-v', 'error', '-show_entries', 'format=duration', 
-                '-of', 'default=noprint_wrappers=1:nokey=1', base_audio
-            ], capture_output=True, text=True, check=True)
-            base_duration_sec = float(probe.stdout.strip())
-            
-            if base_duration_sec <= 0: raise Exception("Durasi audio tidak valid!")
+                # Ambil dari folder khusus base_videos yang baru
+                base_videos_dir = get_channel_folder(yt_id, "base_videos")
+                video_paths = [os.path.join(base_videos_dir, f) for f in os.listdir(base_videos_dir) if f.lower().endswith(('.mp4', '.mov', '.webm', '.mkv'))]
+                if not video_paths: raise Exception("Gallery Video+Audio kosong! Upload MP4 sumber ke tab tersebut.")
+                
+                source_video = random.choice(video_paths)
+                bg_paths = [source_video] # Kunci video ini sebagai background utama
+                
+                # Ekstrak audio dari video ke temp_a.mp3
+                try:
+                    subprocess.run([get_ffmpeg_path(), '-y', '-i', source_video, '-q:a', '0', '-map', 'a', base_audio], check=True, capture_output=True)
+                except subprocess.CalledProcessError:
+                    raise Exception(f"Gagal ekstrak audio! Video {os.path.basename(source_video)} mungkin tidak bersuara.")
+
+                probe = subprocess.run([get_ffprobe_path(), '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', base_audio], capture_output=True, text=True, check=True)
+                try: base_duration_sec = float(probe.stdout.strip())
+                except: raise Exception("Gagal membaca durasi audio dari video utama!")
+
+                title_vid = os.path.splitext(os.path.basename(source_video))[0]
+                track_schedule.append({'title': title_vid, 'path': source_video, 'start': 0.0, 'end': base_duration_sec, 'duration': base_duration_sec})
+
+            else:
+                # --- JALUR LAMA: MODE KLASIK (MIX MP3) ---
+                audio_paths = get_all_audios(yt_id)
+                if not audio_paths: raise Exception("Gallery Audio Kosong!")
+                
+                mp3_req = int(task.get('mp3_per_video', 5))
+                mp3_count = min(mp3_req, len(audio_paths))
+                selected_audios = audio_paths[:mp3_count]
+
+                current_sec = 0.0
+                c_txt = os.path.join(BASE_UPLOAD, f"temp_c_{task_id}.txt")
+                
+                with open(c_txt, 'w', encoding='utf-8') as f:
+                    for ap in selected_audios:
+                        safe_path = os.path.abspath(ap).replace('\\', '/').replace("'", "'\\''")
+                        f.write(f"file '{safe_path}'\n")
+                        probe = subprocess.run([get_ffprobe_path(), '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', ap], capture_output=True, text=True)
+                        try: dur = float(probe.stdout.strip())
+                        except: dur = 0.0
+                        
+                        title = os.path.splitext(os.path.basename(ap))[0]
+                        track_schedule.append({'title': title, 'path': safe_path, 'start': current_sec, 'end': current_sec + dur, 'duration': dur})
+                        current_sec += dur
+
+                subprocess.run([get_ffmpeg_path(), '-y', '-f', 'concat', '-safe', '0', '-i', c_txt, '-c:a', 'libmp3lame', '-ar', '44100', base_audio], check=True)
+
+                probe = subprocess.run([get_ffprobe_path(), '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', base_audio], capture_output=True, text=True, check=True)
+                base_duration_sec = float(probe.stdout.strip())
+                
+                bg_count = int(task.get('bg_count', 1))
+                bg_paths = get_multi_backgrounds(yt_id, count=bg_count)
+                if not bg_paths: raise Exception("Gallery Background Kosong!")
+
+            if base_duration_sec <= 0: raise Exception("Durasi sumber media tidak valid!")
 
             channel_data = next((c for c in database_channel if c['yt_id'] == yt_id), None)
             ch_name = channel_data['name'] if channel_data else "KeiBot FM"
-
-            bg_count = int(task.get('bg_count', 1))
-            bg_paths = get_multi_backgrounds(yt_id, count=bg_count)
-            if not bg_paths: raise Exception("Gallery Background Kosong!")
+            # ============== AKHIR BLOK SUMBER KONTEN (UPDATE) ==============raise Exception("Gallery Background Kosong!")
 
             preset = task.get('vis_preset')
             allowed_presets = task.get('vis_presets_allowed', [])
             if task.get('vis_mode') == 'random' or preset == 'random':
                 preset = get_random_preset(allowed_presets)
             if not isinstance(preset, dict):
-                preset = {"color_bot": "#00d4ff", "color_top": "#7c5cfc", "color_part": "#ffffff", "pos_x": 50, "pos_y": 85, "width_pct": 60, "max_height": 40, "idle_height": 5, "bar_count": 64, "reactivity": 0.66, "gravity": 0.08, "spacing": 3, "part_amount": 3, "part_speed": 1.0}
+                preset = {"color_bot": "#00d4ff", "color_top": "#7c5cfc", "color_part": "#ffffff", 
+                         "pos_x": 50, "pos_y": 85, "width_pct": 60, "max_height": 40, "idle_height": 5, 
+                         "bar_count": 64, "reactivity": 0.66, "gravity": 0.08, "spacing": 3, 
+                         "part_amount": 3, "part_speed": 1.0, "bar_style": "bottom"}
 
             preset['yt_id'] = yt_id 
             preset['use_floating_card'] = task.get('use_floating_card', False)
@@ -679,15 +1141,11 @@ def background_worker():
                         f.write(f"file '{safe_path_vid}'\n")
 
                 if stop_flags.get(task_id): raise Exception("Dibatalkan")
-                subprocess.run([
-                    get_ffmpeg_path(), '-y', '-threads', '2', '-f', 'concat', '-safe', '0', '-i', loop_txt, 
-                    '-c', 'copy', '-t', str(target_sec), final_video
-                ], check=True)
+                # 🔥 REM DILEPAS: Looping Video Final
+                subprocess.run([get_ffmpeg_path(), '-y', '-f', 'concat', '-safe', '0', '-i', loop_txt, '-c', 'copy', '-t', str(target_sec), final_video], check=True)
             else:
                 if stop_flags.get(task_id): raise Exception("Dibatalkan")
-                subprocess.run([
-                    get_ffmpeg_path(), '-y', '-i', base_video, '-c', 'copy', '-t', str(target_sec), final_video
-                ], check=True)
+                subprocess.run([get_ffmpeg_path(), '-y', '-i', base_video, '-c', 'copy', '-t', str(target_sec), final_video], check=True)
 
             if channel_data:
                 creds_list = channel_data.get('creds_list', [channel_data.get('creds_json')])
@@ -778,10 +1236,8 @@ def background_worker():
                                         if d['id'] == task_id: d['status'] = "Memasang Thumbnail... 🖼️"
                                 save_tasks_db()
                                 youtube.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(thumb_path)).execute()
-                                try:
-                                    os.remove(thumb_path)
-                                except Exception:
-                                    pass
+                                try: os.remove(thumb_path)
+                                except: pass
                             except: pass
                                 
                         try:
@@ -852,7 +1308,7 @@ def background_worker():
 threading.Thread(target=background_worker, daemon=True).start()
 
 # ==========================================
-# 📊 API ENDPOINTS
+# 📊 API ENDPOINTS (LANJUTAN)
 # ==========================================
 @app.route('/')
 def index(): return render_template('index.html')
@@ -973,16 +1429,21 @@ def delete_preset():
 @app.route('/api/get_asset_counts')
 def get_asset_counts():
     yt_id = request.args.get('yt_id')
-    if not yt_id: return jsonify({"audios": 0, "backgrounds": 0, "thumbnails": 0})
+    if not yt_id: return jsonify({"audios": 0, "backgrounds": 0, "thumbnails": 0, "base_videos": 0})
     def count_files(sub):
         path = get_channel_folder(yt_id, sub)
         return len([f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))])
-    return jsonify({"audios": count_files("audios"), "backgrounds": count_files("backgrounds"), "thumbnails": count_files("thumbnails")})
+    return jsonify({
+        "audios": count_files("audios"), 
+        "backgrounds": count_files("backgrounds"), 
+        "thumbnails": count_files("thumbnails"),
+        "base_videos": count_files("base_videos") # <--- TAMBAHAN
+    })
 
 @app.route('/api/get_gallery', methods=['GET'])
 def get_gallery():
     yt_id = request.args.get('yt_id')
-    if not yt_id: return jsonify({"audio": [], "background": [], "thumbnails": []})
+    if not yt_id: return jsonify({"audio": [], "background": [], "thumbnails": [], "base_video": []})
     def get_files_data(sub):
         path = get_channel_folder(yt_id, sub)
         res = []
@@ -996,7 +1457,8 @@ def get_gallery():
     return jsonify({
         "audio":      get_files_data("audios"),
         "background": get_files_data("backgrounds"),
-        "thumbnails": get_files_data("thumbnails")
+        "thumbnails": get_files_data("thumbnails"),
+        "base_video": get_files_data("base_videos") # <--- TAMBAHAN
     })
 
 @app.route('/api/upload_gallery', methods=['POST'])
@@ -1053,6 +1515,26 @@ def delete_gallery_file():
         os.remove(path)
         return jsonify({"status": "success", "message": "File dihapus!"})
     return jsonify({"status": "error", "message": f"File tidak ditemukan: {path}"})
+
+@app.route('/api/clear_gallery_folder', methods=['POST'])
+def clear_gallery_folder():
+    yt_id  = request.form.get('yt_id', '').strip()
+    g_type = request.form.get('type',  '').strip()
+
+    folder_name = resolve_folder(g_type)
+    path = get_channel_folder(yt_id, folder_name)
+
+    deleted = 0
+    if os.path.exists(path):
+        for f in os.listdir(path):
+            fp = os.path.join(path, f)
+            if os.path.isfile(fp):
+                try:
+                    os.remove(fp)
+                    deleted += 1
+                except: pass
+
+    return jsonify({"status": "success", "message": f"{deleted} file berhasil disapu bersih!"})
 
 # ============================================================
 # 📝 TITLE BANK ENDPOINT
@@ -1205,20 +1687,43 @@ def batch_create():
     data = request.json
     yt_id = data.get('yt_id')
     count = data.get('count', 1)
+    
     titles = data.get('generated_titles', [])
-    durations_array = data.get('target_durations_array', []) 
+    # 🔥 TAMBAHKAN BARIS INI UNTUK MENANGKAP DESKRIPSI ACAK 🔥
+    descs = data.get('generated_descriptions', []) 
+    
+    durations_array = data.get('target_durations_array', [])
     
     try:
         base_date = datetime.strptime(data['start_date'], '%Y-%m-%dT%H:%M')
     except:
         return jsonify({"status": "error", "message": "Format tanggal salah"}), 400
         
-    # 🔥 FIX 1: Konversi interval_days ke float secara eksplisit untuk mencegah TypeError pada timedelta
     interval_days = float(data.get('interval_days', 1))
+    publish_dates = data.get('generated_publish_dates', [])
+
+    if publish_dates and len(publish_dates) > 0:
+        last_date_str = publish_dates[-1]
+    else:
+        final_v_date = base_date + timedelta(days=(count - 1) * interval_days)
+        last_date_str = final_v_date.strftime('%Y-%m-%d %H:%M')
+        
+    with db_lock:
+        for c in database_channel:
+            if c['yt_id'] == yt_id:
+                c['last_scheduled_date'] = last_date_str
+                c['reminder_sent'] = False  
+                break
+        save_channels(database_channel)
         
     for i in range(count):
         t_id = int(time.time()) + i
-        v_date = base_date + timedelta(days=i * interval_days)
+        
+        if publish_dates and i < len(publish_dates):
+            v_date_str = publish_dates[i]
+        else:
+            v_date = base_date + timedelta(days=i * interval_days)
+            v_date_str = v_date.strftime('%Y-%m-%d %H:%M')
         
         if i < len(durations_array):
             vid_duration = durations_array[i]
@@ -1227,23 +1732,31 @@ def batch_create():
             
         blueprint = {
             "id": t_id, "yt_id": yt_id, "title": titles[i] if i < len(titles) else f"Auto Video #{i+1}",
-            "publish_date": v_date.strftime('%Y-%m-%d %H:%M'),
+            "publish_date": v_date_str,
             "mp3_per_video": data.get('mp3_per_video', 5), 
             "bg_count": data.get('bg_count', 1), 
             "target_duration_hours": vid_duration,
             "vis_mode": data.get('vis_mode'), "vis_preset": data.get('vis_preset'),
-            "vis_presets_allowed": data.get('vis_presets_allowed', []), "description": data.get('description', ''),
+            "vis_presets_allowed": data.get('vis_presets_allowed', []), 
+            
+            # 🔥 UBAH BARIS DESKRIPSI INI 🔥
+            "description": descs[i] if i < len(descs) else data.get('description', ''), 
+            
             "tags": data.get('tags', ''), "privacy": data.get('privacy', 'public'), "playlist_id": data.get('playlist_id', ''),
             "use_floating_card": data.get('use_floating_card', False)
         }
         with db_lock:
-            active_tasks.append({"id": t_id, "title": blueprint['title'], "time": blueprint['publish_date'], "status": "In Factory Queue ⚙️", "type": "📺 VOD"})
-        
-        # Masukkan blueprint ke antrean in-memory worker
+            # 🔥 KITA SIMPAN BLUEPRINT KE DALAM DATABASE AGAR TIDAK HILANG SAAT RESTART 🔥
+            active_tasks.append({
+                "id": t_id, 
+                "title": blueprint['title'], 
+                "time": blueprint['publish_date'], 
+                "status": "In Factory Queue ⚙️", 
+                "type": "📺 VOD",
+                "blueprint": blueprint 
+            })
         render_queue.put(blueprint)
         
-    # 🔥 FIX 2: Pindahkan save_tasks_db() ke LUAR perulangan 'for' 
-    # Menghindari penulisan beruntun ke disk I/O yang menyebabkan VPS freeze/lag
     save_tasks_db()
     
     return jsonify({"status": "success", "message": f"{count} Video diproses!"})
@@ -1252,11 +1765,104 @@ def batch_create():
 def serve_uploads(filename):
     return send_from_directory(BASE_UPLOAD, filename)
 
+# ==========================================
+# 📱 TELEGRAM REMINDER WORKER
+# ==========================================
+def telegram_reminder_worker():
+    global database_channel
+    while True:
+        time.sleep(3600)  # Mengecek jadwal setiap 1 jam
+        
+        bot_config = load_bot_config()
+        token = bot_config.get('tg_token')
+        chat_id = bot_config.get('tg_chat_id')
+        
+        if not token or not chat_id: 
+            continue
+            
+        now = datetime.now()
+        changed = False
+        
+        with db_lock:
+            for c in database_channel:
+                last_date_str = c.get('last_scheduled_date')
+                # Lewati jika belum ada jadwal atau pengingat sudah dikirim
+                if not last_date_str or c.get('reminder_sent', False):
+                    continue
+                    
+                try:
+                    last_date = datetime.strptime(last_date_str, '%Y-%m-%d %H:%M')
+                    time_diff = last_date - now
+                    
+                    # Jika sisa waktu <= 24 Jam (dan belum kelewat jauh)
+                    if timedelta(hours=0) < time_diff <= timedelta(hours=24):
+                        msg = f"⚠️ Notifikasi KeiBot Factory\n\nChannel: *{c['name']}*\nStok jadwal video hampir habis!\nJadwal terakhir: {last_date_str}\n\nWaktunya buat video baru, Bos K!"
+                        try:
+                            # Kirim pesan ke Telegram
+                            requests.post(
+                                f"https://api.telegram.org/bot{token}/sendMessage", 
+                                json={"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}
+                            )
+                            c['reminder_sent'] = True
+                            changed = True
+                        except Exception as e:
+                            print(f"Gagal kirim Telegram: {e}")
+                except Exception as e:
+                    pass
+                    
+            if changed:
+                save_channels(database_channel)
+
+# Jalankan worker di background
+threading.Thread(target=telegram_reminder_worker, daemon=True).start()
+
+# --- Endpoint Telegram Settings ---
+@app.route('/api/save_telegram', methods=['POST'])
+def save_telegram():
+    data = request.json
+    bot_config = load_bot_config()
+    bot_config['tg_token'] = data.get('token', '')
+    bot_config['tg_chat_id'] = data.get('chat_id', '')
+    
+    with open(CONFIG_FILE, 'w') as f: 
+        json.dump(bot_config, f, indent=4)
+    
+    # Tes kirim pesan saat disimpan
+    if bot_config['tg_token'] and bot_config['tg_chat_id']:
+        try:
+            requests.post(
+                f"https://api.telegram.org/bot{bot_config['tg_token']}/sendMessage", 
+                json={"chat_id": bot_config['tg_chat_id'], "text": "✅ KeiBot: Notifikasi Telegram berhasil dihubungkan!"}
+            )
+        except: 
+            pass
+            
+    return jsonify({"status": "success", "message": "Konfigurasi Telegram disimpan!"})
+
+@app.route('/api/get_telegram', methods=['GET'])
+def get_telegram():
+    bot_config = load_bot_config()
+    return jsonify({
+        "token": bot_config.get('tg_token', ''), 
+        "chat_id": bot_config.get('tg_chat_id', '')
+    })
+
 if __name__ == '__main__':
     for t in active_tasks:
-        if t['status'] == "In Factory Queue ⚙️" or "Rendering" in t['status']:
-            t['status'] = "Dibatalkan (Server Restart) ⚠️"
-            history_tasks.insert(0, t)
+        # Deteksi semua task yang nyangkut (termasuk yang kena cooldown atau lagi upload)
+        if t['status'] == "In Factory Queue ⚙️" or "Rendering" in t['status'] or "Antrean" in t['status'] or "Mengunggah" in t['status']:
+            
+            # 🔥 JIKA ADA BLUEPRINT-NYA, KEMBALIKAN KE MESIN RENDER 🔥
+            if "blueprint" in t:
+                t['status'] = "In Factory Queue ⚙️ (Dilanjutkan)"
+                render_queue.put(t["blueprint"])
+            else:
+                # Jaga-jaga untuk task versi lama yang belum punya blueprint
+                t['status'] = "Dibatalkan (Data Hilang) ⚠️"
+                history_tasks.insert(0, t)
+                
+    # Bersihkan task yang dibatalkan saja, biarkan yang dilanjutkan
     active_tasks = [t for t in active_tasks if "Dibatalkan" not in t['status']]
     save_tasks_db()
-    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+    
+    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
