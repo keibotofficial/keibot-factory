@@ -1850,7 +1850,7 @@ def get_telegram():
 if __name__ == '__main__':
     for t in active_tasks:
         # Deteksi semua task yang nyangkut (termasuk yang kena cooldown atau lagi upload)
-        if t['status'] == "In Factory Queue ⚙️" or "Rendering" in t['status'] or "Antrean" in t['status'] or "Mengunggah" in t['status']:
+        if "In Factory Queue" in t['status'] or "Rendering" in t['status'] or "Antrean" in t['status'] or "Mengunggah" in t['status']:
             
             # 🔥 JIKA ADA BLUEPRINT-NYA, KEMBALIKAN KE MESIN RENDER 🔥
             if "blueprint" in t:
