@@ -2804,7 +2804,12 @@ function renderTasks() {
 
 function stopTask(id) {
   if (!confirm('Hentikan paksa?')) return;
-  fetch('/api/stop_task/' + id, { method: 'POST' }).then(r => r.json()).then(d => { toast(d.message, 'info'); fetchServerTasks(); }).catch(() => toast('Gagal menghentikan task', 'error'));
+  const btn = event && event.target;
+  if (btn) { btn.disabled = true; btn.textContent = 'Menghentikan...'; }
+  fetch('/api/stop_task/' + id, { method: 'POST' })
+    .then(r => r.json())
+    .then(d => { toast(d.message, 'info'); fetchServerTasks(); })
+    .catch(() => { toast('Gagal menghentikan task', 'error'); if (btn) { btn.disabled = false; btn.textContent = 'Stop'; } });
 }
 
 function cancelBrowserTask(id) {
