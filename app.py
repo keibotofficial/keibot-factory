@@ -169,8 +169,26 @@ active_tasks = task_data.get("active", [])
 history_tasks = task_data.get("history", [])
 database_channel = load_channels()
 
-render_queue = queue.Queue()
+import itertools
+render_queue = queue.PriorityQueue()
+_queue_seq = itertools.count()  # tie-breaker biar item dgn jadwal sama tidak dibanding langsung sbg dict
+
+def _queue_priority(blueprint):
+    """Ambil timestamp dari publish_date blueprint agar antrean diproses
+    berdasarkan tanggal & jam paling awal duluan, bukan sekadar urutan masuk."""
+    try:
+        return datetime.strptime(blueprint['publish_date'], "%Y-%m-%d %H:%M").timestamp()
+    except Exception:
+        return float('inf')  # kalau tanggal tidak valid/kosong, taruh paling belakang
+
+def queue_put(blueprint):
+    render_queue.put((_queue_priority(blueprint), next(_queue_seq), blueprint))
+
+def queue_get():
+    _priority, _seq, blueprint = render_queue.get()
+    return blueprint
 stop_flags = {}
+active_processes = {}  # 🔥 task_id -> subprocess.Popen aktif, dipakai untuk force-stop instan
 channel_cooldowns = {} 
 
 # 🔥 SISTEM NOTIFIKASI LONCENG 🔥
@@ -909,34 +927,7 @@ def hex_to_rgb(h): return tuple(int(str(h).lstrip('#')[i:i+2], 16) for i in (0, 
 
 def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg):
     # 🔥 1. RESOLUSI FHD 1080p (Lebih Tajam & Jernih) 🔥
-    w, h = 1920, 1080; fps = 30; total_f = int(duration * fps)
-    
-    c_bot = hex_to_rgb(cfg.get('color_bot', '#10b981'))
-    c_top = hex_to_rgb(cfg.get('color_top', '#0ea5e9'))
-    c_part = hex_to_rgb(cfg.get('color_part', '#ffffff'))
-    bar_c = int(cfg.get('bar_count', 64))
-    
-    vis = VisualEngine(c_bot, c_top, c_part)
-    bg = BackgroundManager(bg_paths, w, h)
-    audio = AudioBrain(); audio.load(audio_path)
-    
-    with db_lock:
-        for d in active_tasks:
-            if d['id'] == task_id: d['status'] = "Rendering Visual & Background... ⚡"
-    save_tasks_db()
-
-    # 🔥 2. FILTER ANTI-BURIK (CRF 18 + veryfast) 🔥
-    cmd = [
-        get_ffmpeg_path(), '-y',
-        '-f', 'rawvideo', '-vcodec', 'rawvideo', '-s', f'{w}x{h}', '-pix_fmt', 'bgr24', '-r', str(fps), 
-        '-i', '-', 
-        '-i', audio_path, 
-        '-t', str(duration),
-        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-threads', '0', '-pix_fmt', 'yuv420p', output_path
-    ]
-    
-    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    # 🔥 PERINTAH 3: RESOLUSI KEMBALI KE 720p 🔥
+    # 🔥 PERINTAH 3: RESOLUSI 720p 🔥
     w, h = 1280, 720; fps = 30; total_f = int(duration * fps)
     
     c_bot = hex_to_rgb(cfg.get('color_bot', '#10b981'))
@@ -963,6 +954,7 @@ def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg)
     ]
     
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    active_processes[task_id] = proc
     
     try:
         for f in range(total_f):
@@ -980,6 +972,7 @@ def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg)
         raise e
         
     proc.stdin.close(); proc.wait(); bg.close()
+    active_processes.pop(task_id, None)
 
 # ==========================================
 # 🚀 BACKGROUND WORKER (SUDAH DI-TUNE UP NGEBUT)
@@ -988,7 +981,7 @@ def background_worker():
     global channel_cooldowns
     
     while True:
-        task = render_queue.get()
+        task = queue_get()
         task_id = task['id']
         yt_id = task['yt_id']
         
@@ -1001,7 +994,7 @@ def background_worker():
                         if d['id'] == task_id:
                             d['status'] = f"Antrean Ditunda (Cooldown YT {sisa_menit} mnt) ⏳"
                 save_tasks_db()
-                render_queue.put(task)
+                queue_put(task)
                 render_queue.task_done()
                 time.sleep(5)
                 continue
@@ -1295,7 +1288,7 @@ def background_worker():
                         if d['id'] == task_id:
                             d['status'] = f"Gagal Upload, Antre Ulang ({err_msg}) ⏳"
                 save_tasks_db()
-                render_queue.put(task)
+                queue_put(task)
             else:
                 move_to_history(task_id, f"Gagal ❌ ({err_msg})")
         finally:
@@ -1303,6 +1296,7 @@ def background_worker():
                 try: os.remove(path)
                 except: pass
             stop_flags.pop(task_id, None)
+            active_processes.pop(task_id, None)
             render_queue.task_done()
 
 threading.Thread(target=background_worker, daemon=True).start()
@@ -1595,7 +1589,31 @@ def get_playlists():
 @app.route('/api/stop_task/<int:task_id>', methods=['POST'])
 def stop_task(task_id):
     stop_flags[task_id] = True
-    return jsonify({"status": "success", "message": "Dihentikan!"})
+
+    # 🔥 FORCE STOP 1: kalau ada proses FFmpeg yang lagi aktif untuk task ini, matikan LANGSUNG.
+    # Ini yang bikin stop terasa instan walau lagi di tengah rendering, bukan nunggu
+    # sampai frame berikutnya sempat mengecek stop_flags.
+    proc = active_processes.pop(task_id, None)
+    if proc and proc.poll() is None:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+    # 🔥 FORCE STOP 2: kalau task belum sempat mulai diproses (masih antre di render_queue /
+    # baru "In Factory Queue" / kena cooldown), jangan cuma pasang flag dan nunggu worker
+    # kebetulan mengambilnya nanti — langsung batalkan sekarang juga & pindah ke History.
+    NOT_YET_RUNNING_MARKERS = ("In Factory Queue", "Antrean Ditunda")
+    with db_lock:
+        target = next((t for t in active_tasks if t['id'] == task_id), None)
+    if target and any(m in target['status'] for m in NOT_YET_RUNNING_MARKERS):
+        move_to_history(task_id, "Dibatalkan (Manual) 🛑")
+    else:
+        # Task sedang aktif diproses: proc sudah di-kill di atas, worker akan menangkap
+        # exception dan otomatis memindahkan ke History dalam hitungan detik.
+        save_tasks_db()
+
+    return jsonify({"status": "success", "message": "Dihentikan paksa!"})
 
 @app.route('/api/check_secret')
 def check_secret():
@@ -1755,7 +1773,7 @@ def batch_create():
                 "type": "📺 VOD",
                 "blueprint": blueprint 
             })
-        render_queue.put(blueprint)
+        queue_put(blueprint)
         
     save_tasks_db()
     
@@ -1849,13 +1867,17 @@ def get_telegram():
 
 if __name__ == '__main__':
     for t in active_tasks:
-        # Deteksi semua task yang nyangkut (termasuk yang kena cooldown atau lagi upload)
-        if "In Factory Queue" in t['status'] or "Rendering" in t['status'] or "Antrean" in t['status'] or "Mengunggah" in t['status']:
+        # 🔥 FIX: cek berdasarkan status FINAL (bukan daftar kata kunci "sedang berjalan"),
+        # supaya task tidak pernah "kelewat" walau nyangkut di status mana pun,
+        # termasuk saat sudah pernah kena tag (Dilanjutkan) dari restart sebelumnya.
+        is_final = ("Selesai" in t['status'] or "Sukses" in t['status']
+                    or "Gagal" in t['status'] or "Dibatalkan" in t['status'])
+        if not is_final:
             
             # 🔥 JIKA ADA BLUEPRINT-NYA, KEMBALIKAN KE MESIN RENDER 🔥
             if "blueprint" in t:
                 t['status'] = "In Factory Queue ⚙️ (Dilanjutkan)"
-                render_queue.put(t["blueprint"])
+                queue_put(t["blueprint"])
             else:
                 # Jaga-jaga untuk task versi lama yang belum punya blueprint
                 t['status'] = "Dibatalkan (Data Hilang) ⚠️"
