@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KeiBot Clipper Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #0b111a; color: #ffffff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .cardborder { border-color: #1e2e42; }
+        .bg-card { background-color: #111722; }
+        .text-primary { color: #00e5ff; }
+        .bg-primary { background-color: #00e5ff; color: #000; }
+        .bg-primaryhover:hover { background-color: #00b3cc; }
+        
+        input, select { background-color: #0a0f1c; border: 1px solid #1e2e42; color: #fff; outline: none; }
+        input:focus, select:focus { border-color: #00e5ff; box-shadow: 0 0 0 2px rgba(0,229,255,0.2); }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #1e2e42; border-radius: 4px; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-6">
+    
+    <!-- HEADER -->
+    <div class="w-full max-w-5xl flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold tracking-wide">Keibot <span class="text-primary">Clipper Pro</span></h1>
+            <p class="text-gray-400 text-sm mt-1">Auto-Viral Batch Engine & Social Media Scheduler</p>
+        </div>
+        
+        <div class="flex items-center gap-3">
+    <!-- Tombol Kembali ke Hub -->
+    <a href="/hub" class="bg-[#111722] hover:bg-[#1a2332] border border-gray-700 px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+        <i class="fa-solid fa-house"></i> Kembali ke Hub
+    </a>
+
+    <!-- Tombol Buka Galeri -->
+    <button onclick="openGallery()" class="bg-[#111722] hover:bg-[#1a2332] border border-gray-700 hover:border-primary text-white px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+        <i class="fa-solid fa-folder-open text-primary"></i> Buka Galeri
+    </button>
+</div>
+    </div>
+
+    <div class="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- KOLOM KIRI: SETTING & INPUT -->
+        <div class="lg:col-span-2 space-y-6">
+            
+            <!-- STEP 1: Sumber Video -->
+            <div class="bg-card border border-cardborder rounded-xl p-6">
+                <h2 class="text-primary font-bold mb-4 flex items-center gap-2"><i class="fa-brands fa-youtube"></i> 1. Sumber Video</h2>
+                <div class="flex gap-3">
+                    <div class="relative flex-grow">
+                        <i class="fa-solid fa-link absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i>
+                        <input type="text" id="urlInput" placeholder="https://youtube.com/watch?v=..." class="w-full pl-10 pr-4 py-3 rounded-lg text-sm">
+                    </div>
+                    <button id="btnInfo" class="bg-gray-800 hover:bg-gray-700 text-white px-6 py-3 rounded-lg text-sm font-bold transition-colors shrink-0">
+                        Ambil Info
+                    </button>
+                </div>
+                
+                <!-- Info Video Muncul Disini -->
+                <div id="videoInfo" class="hidden mt-4 pt-4 border-t border-cardborder">
+                    <div class="flex gap-4 items-start">
+                        <img id="thumbPreview" class="w-32 rounded-lg border border-gray-700 shadow-md">
+                        <div>
+                            <div id="videoTitle" class="font-bold text-sm mb-1 line-clamp-2 text-gray-200">Judul Video</div>
+                            <div class="text-xs text-gray-400"><i class="fa-regular fa-clock mr-1"></i> <span id="videoDuration">00:00:00</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 2: Pengaturan Clip Pro -->
+            <div class="bg-card border border-cardborder rounded-xl p-6">
+                <h2 class="text-primary font-bold mb-4 flex items-center gap-2"><i class="fa-solid fa-scissors"></i> 2. Pengaturan Batch & Crop</h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-2">Jumlah Clip (Batch)</label>
+                        <select id="batchCount" class="w-full p-2.5 rounded-lg text-sm">
+                            <option value="1">1 Clip (Viral Moment Terbaik)</option>
+                            <option value="3">3 Clips (Deteksi Otomatis)</option>
+                            <option value="5">5 Clips (Deteksi Otomatis)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-2">Model Crop 9:16</label>
+                        <select id="cropMode" class="w-full p-2.5 rounded-lg text-sm">
+                            <option value="center">Fokus Tengah (Center Crop)</option>
+                            <option value="split">Atas Bawah (Kanan atas, Kiri bawah)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="border-t border-cardborder pt-5 mb-5">
+                    <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-3">Pengaturan AI & Efek</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-2">Style Subtitle (Auto Lirik)</label>
+                            <select id="lyricStyle" class="w-full p-2.5 rounded-lg text-sm font-semibold">
+                                <option value="none">-- Tanpa Subtitle --</option>
+                                <option value="mrbeast">🟡 Kuning Bold ala MrBeast</option>
+                                <option value="neon">✨ Neon Glow</option>
+                                <option value="karaoke">🎤 Karaoke Per-Kata</option>
+                            </select>
+                            
+                            <!-- MANAJER CUSTOM FONT OTOMATIS -->
+                            <label class="block text-[10px] text-gray-400 mb-1 mt-2">Custom Font (.ttf / .otf)</label>
+                            <div class="flex gap-2">
+                                <select id="customFont" class="w-full p-2 rounded-lg text-xs bg-gray-900 border border-gray-700 text-white outline-none focus:border-primary">
+                                    <option value="">-- Gunakan Font Bawaan --</option>
+                                </select>
+                                
+                                <!-- Tombol Upload (Hidden Input) -->
+                                <label for="fontUpload" class="bg-primary hover:bg-indigo-500 text-white px-3 py-2 rounded-lg cursor-pointer text-xs flex items-center justify-center transition-colors" title="Upload Font Baru">
+                                    <i class="fa-solid fa-upload"></i>
+                                </label>
+                                <input type="file" id="fontUpload" accept=".ttf,.otf" class="hidden">
+                                
+                                <!-- Tombol Hapus -->
+                                <button id="btnDeleteFont" type="button" class="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-xs flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled title="Hapus Font Terpilih">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                            <div id="fontUploadStatus" class="text-[10px] text-gray-400 mt-1 hidden">Mengunggah...</div>
+                        </div>
+                        <div class="flex items-center mt-6">
+                            <label class="flex items-center cursor-pointer border border-cardborder px-4 py-2.5 rounded-lg w-full hover:border-primary transition-colors bg-[#0a0f1c]">
+                                <input type="checkbox" id="useVisualizer" class="w-4 h-4 text-primary bg-gray-900 border-gray-600 rounded">
+                                <span class="ml-3 text-sm text-gray-300">Tambahkan Spectrum Bar</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NEW: PENGATURAN AUDIO & BGM -->
+                <div class="border-t border-cardborder pt-5 mb-2">
+                    <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-3">🎵 Pengaturan Audio & Musik Latar</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[10px] text-gray-400 mb-1">1. Pilih Sumber Brankas Aset</label>
+                            <select id="assetChannelSelect" class="w-full p-2 rounded-lg text-sm bg-gray-900 border border-gray-700 mb-2">
+                                <option value="">-- Memuat Channel... --</option>
+                            </select>
+                            
+                            <label class="block text-[10px] text-gray-400 mb-1">2. Pilih File Audio (MP3)</label>
+                            <select id="bgmSelect" class="w-full p-2 rounded-lg text-sm font-semibold text-gray-300 bg-gray-900 border border-gray-700" disabled>
+                                <option value="none">-- Pilih Brankas Dulu --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-2">Mode Audio Mixing</label>
+                            <select id="audioMode" class="w-full p-2.5 rounded-lg text-sm font-semibold">
+                                <option value="bgm">BGM Mode (Suara Asli 100% + BGM 15%)</option>
+                                <option value="replace">Mute Mode (Suara Asli 0% + Musik 100%)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- STEP 3: Integrasi & Jadwal -->
+            <div class="bg-card border border-cardborder rounded-xl p-6">
+                <h2 class="text-primary font-bold mb-4 flex items-center gap-2"><i class="fa-solid fa-calendar-check"></i> 3. Jadwal Publish</h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-2">Destinasi Output</label>
+                        <select id="outputDest" class="w-full p-2.5 rounded-lg text-sm font-semibold text-primary bg-gray-900 border border-gray-700">
+                            <option value="local">💾 Simpan Lokal (Download)</option>
+                            <option value="youtube">▶️ Upload ke YouTube</option>
+                            <option value="drive">☁️ Kirim ke Google Drive</option>
+                            <option value="dropbox">📦 Kirim ke Dropbox</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-2">Target Channel (Aset BGM)</label>
+                        <select id="channelSelect" class="w-full p-2.5 rounded-lg text-sm">
+                            <option value="">-- Pilih Channel --</option>
+                            <!-- Diisi via JS dari channels_db.json -->
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-2">Mulai Publish</label>
+                        <input type="datetime-local" id="publishDate" class="w-full p-2.5 rounded-lg text-sm text-gray-300">
+                    </div>
+                </div>
+                
+                <div class="bg-blue-500/10 border border-blue-500/20 p-3 rounded-lg text-xs text-blue-400 flex items-start gap-2">
+                    <i class="fa-solid fa-circle-info mt-0.5"></i>
+                    <p>Jika kamu membuat lebih dari 1 clip (Batch), video kedua dan seterusnya akan otomatis dijadwalkan dengan interval 1 hari dari jadwal mulai.</p>
+                </div>
+            </div>
+
+            <button id="btnStartBatch" class="w-full bg-primary hover:bg-primaryhover text-black py-4 rounded-xl text-lg font-bold shadow-[0_0_20px_rgba(0,229,255,0.3)] transition-all transform hover:-translate-y-1 flex justify-center items-center gap-2">
+                <i class="fa-solid fa-rocket"></i> Generate & Jadwalkan Clip
+            </button>
+
+        </div>
+
+        <!-- KOLOM KANAN: API & MONITOR -->
+        <div class="space-y-6">
+            
+            <!-- API Token Manager -->
+            <div class="bg-card border border-cardborder rounded-xl p-6">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-sm font-bold text-white"><i class="fa-solid fa-key text-primary mr-1"></i> API Key Manager</h2>
+                </div>
+                
+                <!-- Opsi Provider -->
+                <div class="mb-3 border-b border-gray-800 pb-3">
+                    <label class="block text-[10px] text-gray-400 mb-1">Pilih Provider AI untuk Auto-Lirik</label>
+                    <select id="apiProviderSelect" class="w-full p-2 rounded-lg text-xs font-semibold bg-gray-900 border border-gray-700 text-white outline-none focus:border-primary transition-colors">
+                        <option value="huggingface">Hugging Face (Gratis - Sering Limit)</option>
+                        <option value="groq">Groq Whisper (Gratis - Super Cepat)</option>
+                        <option value="gemini">Gemini AI Studio (Gratis - Kuota Besar)</option>
+                    </select>
+                </div>
+                
+                <!-- Deskripsi & Dynamic Link -->
+                <p class="text-[10px] text-gray-400 mb-3 leading-relaxed">
+                    Tambahkan API Key untuk fitur Auto-Lirik. 
+                    <a id="apiKeyLink" href="https://huggingface.co/settings/tokens" target="_blank" class="text-primary hover:text-white underline transition-colors font-semibold">Ambil Token HF di sini</a>. 
+                    Sistem akan merotasi otomatis jika limit habis.
+                </p>
+                
+                <div class="flex gap-2 mb-3">
+                    <input type="password" id="apiTokenInput" placeholder="Masukkan Token / API Key..." class="w-full p-2 rounded-lg text-xs border border-gray-700 focus:border-primary">
+                    <button onclick="addToken()" class="bg-gray-800 hover:bg-gray-700 px-3 rounded-lg text-xs font-bold text-white transition-colors">+</button>
+                </div>
+                
+                <div id="tokenList" class="space-y-2 max-h-32 overflow-y-auto pr-1">
+                    <div class="text-center text-[10px] text-gray-500 py-2">Belum ada token tersimpan.</div>
+                </div>
+            </div>
+
+            <!-- COOKIE MANAGER -->
+            <div class="bg-card border border-cardborder rounded-xl p-6">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-sm font-bold text-white"><i class="fa-solid fa-cookie-bite text-primary mr-1"></i> Cookie Downloader</h2>
+                    <span id="cookieStatus" class="text-[10px] text-gray-500">Memeriksa...</span>
+                </div>
+                <p class="text-[10px] text-gray-400 mb-3 leading-relaxed">
+                    Pilih format Netscape di ekstensi cookie, klik Copy, lalu paste hasilnya di sini. Cookie akan disimpan aman di server dan dipakai otomatis oleh yt-dlp.
+                </p>
+                <textarea id="cookieText" rows="5" placeholder="Klik Copy pada ekstensi cookie, lalu paste cookies Netscape di sini..." class="w-full p-2 rounded-lg text-[10px] font-mono mb-2"></textarea>
+                <div class="flex gap-2">
+                    <button id="btnUploadCookie" type="button" class="bg-primary px-3 py-2 rounded-lg text-xs font-bold text-black">Simpan Cookie</button>
+                    <button id="btnClearCookieText" type="button" class="bg-gray-800 px-3 py-2 rounded-lg text-xs font-bold text-white">Bersihkan</button>
+                </div>
+                <button id="btnDeleteCookie" type="button" class="mt-2 text-[10px] text-red-400 hover:text-red-300">Hapus cookie tersimpan</button>
+                <div id="cookieMessage" class="text-[10px] text-gray-400 mt-2"></div>
+            </div>
+
+            <!-- Task Monitor -->
+            <div class="bg-card border border-cardborder rounded-xl p-6 flex-grow">
+                <div class="flex justify-between items-center mb-4 border-b border-gray-800 pb-3">
+                    <h2 class="text-sm font-bold text-white"><i class="fa-solid fa-list-check text-primary mr-1"></i> Antrean Render</h2>
+                    <button onclick="clearHistory()" class="text-[10px] bg-red-500/10 text-red-400 px-2 py-1 rounded hover:bg-red-500 hover:text-white transition-colors">Clear</button>
+                </div>
+                
+                <div id="taskList" class="space-y-4 max-h-[500px] overflow-y-auto pr-1">
+                    <div class="text-center py-8 text-gray-500 text-xs border-2 border-dashed border-gray-800 rounded-lg">Belum ada antrean clip saat ini.</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Modal Galeri Hasil Clip -->
+    <div id="galleryModal" class="hidden fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-[#0a0f1c] border border-gray-700 rounded-xl w-full max-w-5xl max-h-[85vh] flex flex-col shadow-2xl">
+            <!-- Header Galeri -->
+            <div class="p-4 md:p-6 border-b border-gray-800 flex justify-between items-center">
+                <h3 class="text-white font-bold text-lg"><i class="fa-solid fa-photo-film text-primary mr-2"></i> Galeri Hasil Clip</h3>
+                <div class="flex gap-3">
+                    <button onclick="deleteAllClips()" class="bg-red-500/10 text-red-500 hover:bg-red-600 hover:text-white border border-red-500/30 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                        <i class="fa-solid fa-trash-can mr-1"></i> Kosongkan Galeri
+                    </button>
+                    <button onclick="closeGallery()" class="text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 w-8 h-8 rounded-full flex items-center justify-center transition-colors">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+            <!-- Isi Galeri (Grid) -->
+            <div id="galleryContainer" class="p-4 md:p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Data akan di-render dari JS -->
+                <div class="col-span-full text-center py-10 text-gray-500"><i class="fa-solid fa-spinner fa-spin text-2xl"></i><br>Memuat galeri...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- UI Logics & DOM Manipulations akan disuntikkan dari clipper.js -->
+    <script src="/static/js/clipper.js"></script>
+    <script>
+        async function refreshCookieStatus() {
+            const status = document.getElementById('cookieStatus');
+            try {
+                const response = await fetch('/api/clip/cookies/status');
+                const result = await response.json();
+                status.textContent = result.data && result.data.configured ? 'Tersimpan' : 'Belum ada';
+                status.className = result.data && result.data.configured
+                    ? 'text-[10px] text-green-400'
+                    : 'text-[10px] text-gray-500';
+            } catch (error) {
+                status.textContent = 'Gagal memeriksa';
+            }
+        }
+
+        document.getElementById('btnUploadCookie').addEventListener('click', async () => {
+            const input = document.getElementById('cookieText');
+            const message = document.getElementById('cookieMessage');
+            if (!input.value.trim()) {
+                message.textContent = 'Paste cookies hasil tombol Copy terlebih dahulu.';
+                return;
+            }
+            const form = new FormData();
+            form.append('cookies', input.value);
+            message.textContent = 'Menyimpan cookie...';
+            try {
+                const response = await fetch('/api/clip/cookies/upload', { method: 'POST', body: form });
+                const result = await response.json();
+                message.textContent = result.message || result.error || 'Selesai.';
+                if (result.success) {
+                    input.value = '';
+                    refreshCookieStatus();
+                }
+            } catch (error) {
+                message.textContent = 'Gagal menyimpan cookie.';
+            }
+        });
+
+        document.getElementById('btnClearCookieText').addEventListener('click', () => {
+            document.getElementById('cookieText').value = '';
+            document.getElementById('cookieMessage').textContent = '';
+        });
+
+        document.getElementById('btnDeleteCookie').addEventListener('click', async () => {
+            const message = document.getElementById('cookieMessage');
+            const response = await fetch('/api/clip/cookies', { method: 'DELETE' });
+            const result = await response.json();
+            message.textContent = result.message || 'Cookie dihapus.';
+            refreshCookieStatus();
+        });
+
+        refreshCookieStatus();
+    </script>
+</body>
+</html>

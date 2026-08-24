@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KeiBot Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            background-color: #0b111a; 
+            color: #ffffff; 
+        }
+        .card-hover:hover {
+            border-color: #00e5ff;
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.15);
+            transform: translateY(-2px);
+        }
+        /* Memberikan efek border bercahaya statis untuk card Factory seperti di gambar */
+        .card-active {
+            border-color: #00e5ff;
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.15);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center font-sans p-6">
+    
+    <!-- HEADER -->
+    <div class="text-center mb-10">
+        <h1 class="text-4xl font-bold mb-3 tracking-wide">Keibot <span class="text-[#00e5ff]">Hub</span></h1>
+        <p class="text-gray-400 text-sm">Pilih modul operasi untuk memulai sesi</p>
+    </div>
+
+    <!-- STATUS BOARD (DARK MODE) -->
+    <div class="bg-[#111722] rounded-xl border border-gray-800 p-5 mb-10 flex flex-wrap justify-center items-center gap-8 max-w-3xl w-full">
+        <div class="text-center px-4">
+            <p class="text-xs text-gray-500 mb-1">Factory aktif</p>
+            <div class="flex items-baseline justify-center gap-1">
+                <span class="text-2xl font-bold text-white" id="stat-factory">-</span>
+                <span class="text-xs text-gray-500">render</span>
+            </div>
+        </div>
+        <div class="w-px h-8 bg-gray-800 hidden sm:block"></div>
+        <div class="text-center px-4">
+            <p class="text-xs text-gray-500 mb-1">Clipper aktif</p>
+            <div class="flex items-baseline justify-center gap-1">
+                <span class="text-2xl font-bold text-white" id="stat-clipper">-</span>
+                <span class="text-xs text-gray-500">clip</span>
+            </div>
+        </div>
+        <div class="w-px h-8 bg-gray-800 hidden sm:block"></div>
+        <div class="text-center px-4">
+            <p class="text-xs text-gray-500 mb-1">Beban server</p>
+            <div class="flex items-baseline justify-center gap-1">
+                <span class="text-2xl font-bold text-yellow-500" id="stat-cpu">--%</span>
+                <span class="text-xs text-gray-500">CPU</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- KARTU MODUL -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl w-full">
+        <!-- Factory -->
+        <a href="/factory" class="bg-[#111722] rounded-xl border border-gray-800 p-8 text-center card-active card-hover transition-all duration-300 block">
+            <h2 class="text-xl font-bold mb-4 text-[#00e5ff]">🏭 Factory</h2>
+            <p class="text-gray-400 text-sm leading-relaxed mb-4">Dashboard utama Batch Engine untuk auto-render visualizer audio dan jadwal upload massal ke YouTube.</p>
+            <p class="text-xs text-gray-600 mt-4 border-t border-gray-800 pt-3" id="txt-factory">Memuat status...</p>
+        </a>
+
+        <!-- Clipper -->
+        <a href="/clipper" class="bg-[#111722] rounded-xl border border-gray-800 p-8 text-center card-hover transition-all duration-300 block">
+            <h2 class="text-xl font-bold mb-4 text-[#00e5ff]">✂️ Clipper</h2>
+            <p class="text-gray-400 text-sm leading-relaxed mb-4">Potong video YouTube secara spesifik dan auto upload tanpa download manual.</p>
+            <p class="text-xs text-gray-600 mt-4 border-t border-gray-800 pt-3" id="txt-clipper">Memuat status...</p>
+        </a>
+    </div>
+
+    <!-- SCRIPT REAL-TIME POLLING -->
+    <script>
+        async function fetchHubStatus() {
+            try {
+                const response = await fetch('/api/hub_status');
+                const data = await response.json();
+                
+                document.getElementById('stat-factory').innerText = data.factory;
+                document.getElementById('stat-clipper').innerText = data.clipper;
+                document.getElementById('stat-cpu').innerText = data.cpu;
+                
+                document.getElementById('txt-factory').innerText = `${data.factory} video sedang dirender`;
+                document.getElementById('txt-clipper').innerText = `${data.clipper} clip sedang diproses`;
+            } catch (error) {
+                console.error("Gagal mengambil status Hub:", error);
+            }
+        }
+        fetchHubStatus();
+        setInterval(fetchHubStatus, 3000);
+    </script>
+</body>
+</html>
