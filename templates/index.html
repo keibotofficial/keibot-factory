@@ -313,6 +313,8 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
 .gitem-thumb.vid { aspect-ratio:16/9; }
 .gitem-overlay { position:absolute; inset:0; background:rgba(0,0,0,0); display:grid; place-items:center; opacity:0; transition:.15s; font-size:18px; }
 .gitem:hover .gitem-overlay { opacity:1; background:rgba(0,0,0,.45); }
+.gitem-img { width:100%; height:100%; object-fit:cover; display:block; }
+.gitem-vid { width:100%; height:100%; object-fit:cover; display:block; background:#000; }
 .gitem-info { padding:8px 10px; }
 .gitem-name { font-size:10px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
 .gitem-meta { font-family:var(--font-m); font-size:9px; color:var(--muted); }
@@ -355,8 +357,13 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
 .sched-meta { font-family:var(--font-m); font-size:9px; color:var(--muted); }
 .sched-date { font-family:var(--font-m); font-size:10px; color:var(--yellow); flex-shrink:0; }
 
+.ch-group-head { display:flex; align-items:center; gap:8px; padding:10px 14px; margin:12px 0 6px; background:linear-gradient(135deg, var(--card2), rgba(40,60,90,.5)); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:var(--r); font-size:12px; font-weight:700; }
+.ch-group-ico { font-size:14px; }
+.ch-group-name { letter-spacing:.5px; }
 .task-row { display:flex; align-items:center; gap:12px; padding:12px 16px; background:var(--card2); border:1px solid var(--border); border-radius:var(--r); margin-bottom:8px; transition:.15s; }
 .task-row:hover { border-color:var(--border2); }
+/* 🔥 BARU: task yang sedang ANTRE / menunggu diberi sorot KUNING agar mudah dibedakan */
+.task-row.q-waiting { border:1px solid rgba(255,201,77,.5); background:linear-gradient(90deg, rgba(255,201,77,.1), var(--card2)); box-shadow:0 0 10px rgba(255,201,77,.15); }
 .task-icon { font-size:20px; width:36px; text-align:center; flex-shrink:0; }
 .task-info { flex:1; min-width:0; }
 .task-name { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
@@ -484,6 +491,11 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
       <div class="tb-sub" id="tb-sub">Overview sistem & analytics</div>
     </div>
     <div class="tb-right">
+
+      <!-- TOMBOL KEMBALI KE HUB -->
+      <a href="/hub" class="btn btn-g" style="text-decoration: none; display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 11px; margin-right: 4px;">
+         <span style="font-size: 14px;">🏠</span> Hub
+      </a>
       
       <div class="notif-container" style="position:relative;">
         <button id="notif-btn" class="btn btn-g" style="padding:8px; border-radius:50%; width:36px; height:36px; position:relative;" onclick="toggleNotif()">
@@ -540,7 +552,7 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
     <div id="panel-tasks" class="panel">
       <div class="sh" style="margin-bottom:18px">
         <div><div class="sh-title">Task Monitor</div><div class="sh-sub">Real-time render & upload queue</div></div>
-        <div style="display:flex;gap:8px"><button class="btn btn-g btn-sm" onclick="clearHistory()">🧹 Clear History</button></div>
+        <div style="display:flex;gap:8px"><button class="btn btn-g btn-sm" onclick="recoverFailedTasks()">♻️ Pulihkan Task Gagal</button><button class="btn btn-g btn-sm" onclick="clearHistory()">🧹 Clear History</button></div>
       </div>
 
       <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:18px">
@@ -692,11 +704,24 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
                 </div>
             </div>
 
+            <div id="videoutuh-settings-wrap" style="display:none">
+                <div class="fg" style="margin-bottom:0">
+                    <label class="fl" style="color:var(--accent); font-size:11px;">🎲 Jml Video Acak per Final Video</label>
+                    <input type="number" id="bc-vid-count" value="1" min="1" max="100"
+                        placeholder="Isi 1 = 1 video utuh (perilaku lama); isi 5 = random 5 video berbeda tiap render"
+                        style="border-color:rgba(0,212,255,.3); background:rgba(0,212,255,.05);">
+                    <div style="font-family:var(--font-m);font-size:9px;color:var(--muted);margin-top:4px">
+                        N video digabung utuh (video+audio+subtitle ikut semua, tanpa re-encode). Floating Card menampilkan nama file tiap segmen (misal "06. Langkah Sabar.mp4" → "Langkah Sabar").
+                    </div>
+                </div>
+            </div>
+
             <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
               <div style="font-family:var(--font-m);font-size:10px;color:var(--muted);margin-bottom:6px;letter-spacing:.1em">STATUS ASET GALLERY</div>
               <div id="bc-audio-status" style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px;">Audio: Pilih channel dulu</div>
               <div id="bc-bg-status" style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px;">BG Biasa: Pilih channel dulu</div>
               <div id="bc-base-status" style="font-size:11px;font-weight:700;color:var(--text2);">Video+Audio: Pilih channel dulu</div>
+              <div id="bc-thumb-status" style="font-size:11px;font-weight:700;color:var(--text2);">Thumbnails: Pilih channel dulu</div>
             </div>
           </div>
         </div> <!-- PENUTUP G2 YANG KEMARIN HILANG -->
@@ -845,7 +870,7 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
             </div>
 
             <div class="preview-container" id="preview-container">
-                <video id="preview_bg_vid" class="preview-bg-vid" muted loop autoplay playsinline></video>
+                <video id="preview_bg_vid" class="preview-bg-vid" playsinline></video>
                 <img id="preview_bg_img" class="preview-bg-img" alt="Preview Background">
                 <div class="preview-overlay"></div>
                 <canvas id="preset_canvas"></canvas>
@@ -929,6 +954,7 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
 
             <div class="g4">
               <div class="sg"><div class="sg-lbl">Bar Count <span class="vb" id="vv-bc">64</span></div><input type="range" id="bc-bars" min="10" max="200" value="64" oninput="uv('vv-bc',this.value,'')"></div>
+              <div class="sg"><div class="sg-lbl">Bar Width <span class="vb" id="vv-bw">12px</span></div><input type="range" id="bc-bar-width" min="2" max="60" value="12" oninput="uv('vv-bw',this.value,'px')"></div>
               <div class="sg"><div class="sg-lbl">Reactivity <span class="vb" id="vv-r">0.66x</span></div><input type="range" id="bc-react" min="0.1" max="4.0" step="0.01" value="0.66" oninput="uv('vv-r',this.value,'x')"></div>
               <div class="sg"><div class="sg-lbl">Bar Gap <span class="vb" id="vv-sp">3px</span></div><input type="range" id="bc-gap" min="0" max="20" value="3" oninput="uv('vv-sp',this.value,'px')"></div>
               <div class="sg"><div class="sg-lbl">Particles <span class="vb" id="vv-pa">3</span></div><input type="range" id="bc-parts" min="0" max="300" value="3" oninput="uv('vv-pa',this.value,'')"></div>
@@ -1398,17 +1424,36 @@ function renderChannelsGrid() {
         <div style="font-size:13px;font-weight:700;margin-bottom:3px">${c.name}</div>
         <span class="pill p-green">${c.status}</span>
       </div>
-      <button class="btn btn-danger btn-sm" onclick="deleteChannel('${c.yt_id}')">🗑 Hapus</button>
+      <div style="display:flex; gap:6px;">
+        <button class="btn btn-g btn-sm" onclick="stopChannelTasks('${c.yt_id}')" style="border-color:var(--accent); color:var(--accent);">🛑 Stop Antrean</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteChannel('${c.yt_id}')">🗑 Hapus Total</button>
+      </div>
     </div>`).join('');
 }
 
+function stopChannelTasks(yt_id) {
+  if (!confirm('Hentikan seluruh antrean untuk channel ini?\n(Aset Gallery dan Profil Channel tetap utuh)')) return;
+  fetch('/api/stop_channel/' + yt_id, { method: 'POST' })
+    .then(r => r.json())
+    .then(d => { 
+        toast(d.message, 'success'); 
+        fetchServerTasks(); 
+        loadChannels(); 
+    })
+    .catch(() => toast('Gagal menghentikan antrean', 'error'));
+}
+
 function deleteChannel(yt_id) {
-  if (!confirm('Hapus channel ini?')) return;
+  if (!confirm('⚠️ PERINGATAN NUKLIR!\n\nYakin ingin menghapus channel ini secara permanen?\nSeluruh folder aset (Video, Audio, Background), Title Bank, dan sisa antrean akan dimusnahkan tanpa jejak!')) return;
   const fd = new FormData();
   fd.append('yt_id', yt_id);
   fetch('/api/delete_channel', { method: 'POST', body: fd })
     .then(r => r.json())
-    .then(d => { toast(d.message, 'success'); loadChannels(); })
+    .then(d => { 
+        toast(d.message, 'success'); 
+        loadChannels(); 
+        fetchServerTasks(); 
+    })
     .catch(() => toast('Gagal menghapus channel', 'error'));
 }
 
@@ -1437,7 +1482,7 @@ function switchGTab(type, el) {
 function loadGallery() {
   currentGalleryCh = document.getElementById('gallery-ch-sel').value;
   if (!currentGalleryCh) {
-    galleryData = { audio: [], background: [], thumbnails: [] };
+    galleryData = { audio: [], background: [], thumbnails: [], base_video: [] };
     renderGallery();
     return;
   }
@@ -1449,7 +1494,7 @@ function loadGallery() {
     document.getElementById('gcount-base').textContent = (data.base_video || []).length; // <--- TAMBAHAN
     renderGallery();
   }).catch(() => {
-    galleryData = { audio: [], background: [], thumbnails: [] };
+    galleryData = { audio: [], background: [], thumbnails: [], base_video: [] };
     renderGallery();
   });
 }
@@ -1472,20 +1517,62 @@ function renderGallery() {
   
   if (btnDelAll) btnDelAll.style.display = 'inline-flex';
 
-  const isAudio = currentGalleryType === 'audio';
-  
-  grid.innerHTML = items.map((f) => `
+    const isAudio = currentGalleryType === 'audio';
+  grid.innerHTML = items.map((f) => {
+    const ext = (f.name.split('.').pop() || '').toLowerCase();
+    const url = f.url || null;
+    const isImg = !isAudio && ['jpg','jpeg','png','gif','webp'].includes(ext);
+    const isVid = !isAudio && ['mp4','webm','mov'].includes(ext);
+    let thumbHtml = '';
+    if (isImg && url) {
+      thumbHtml = `<img class="gitem-img" src="${url}" alt="${f.name}" loading="lazy">
+                   <div class="gitem-overlay img-zoom" onclick="openGalleryPreview('${url}')">🔍</div>`;
+    } else if (isVid && url) {
+      thumbHtml = `<video class="gitem-vid" src="${url}" muted preload="metadata"></video>
+                   <div class="gitem-overlay vid-play" onclick="playGalleryVideo(this, '${url}')">▶</div>`;
+    } else {
+      thumbHtml = `<span>${isAudio ? '🎵' : '🖼️'}</span>
+                   <div class="gitem-overlay">▶</div>`;
+    }
+    const nameSafe = f.name.replace(/'/g, "\\'");
+    return `
     <div class="gitem">
       <div class="gitem-thumb ${!isAudio ? 'vid' : ''}">
-        <span>${isAudio ? '🎵' : '🖼️'}</span>
-        <div class="gitem-overlay">▶</div>
+        ${thumbHtml}
       </div>
-      <button class="gitem-del" onclick="deleteGalleryFile('${f.name}')">✕</button>
+      <button class="gitem-del" onclick="deleteGalleryFile('${nameSafe}')">✕</button>
       <div class="gitem-info">
         <div class="gitem-name">${f.name}</div>
         <div class="gitem-meta">${f.size || '—'}</div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+}
+function openGalleryPreview(url) {
+  // 🔥 BARU: modal preview gambar ukuran penuh
+  let modal = document.getElementById('gallery-preview-modal');
+  if (modal) modal.remove();
+  modal = document.createElement('div');
+  modal.id = 'gallery-preview-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;padding:20px;';
+  modal.onclick = () => modal.remove();
+  modal.innerHTML = `<img src="${url}" style="max-width:92vw;max-height:92vh;border-radius:12px;object-fit:contain;box-shadow:0 20px 60px rgba(0,0,0,.6);">`;
+  document.body.appendChild(modal);
+}
+function playGalleryVideo(btn, url) {
+  const wrap = btn.parentElement;
+  const vid = wrap.querySelector('video');
+  if (!vid) return;
+  if (vid.paused) {
+    vid.controls = true;
+    vid.muted = false;
+    vid.play().catch(() => {});
+    btn.style.display = 'none';
+  } else {
+    vid.pause();
+    vid.controls = false;
+    btn.style.display = 'grid';
+  }
 }
 
 function deleteAllGallery() {
@@ -1518,6 +1605,44 @@ function handleGalleryUpload(event) {
   }
   const files = event.target.files;
   if (!files || !files.length) return;
+
+  // 🔥 BARU: validasi thumbnail client-side — format JPG/PNG & ukuran min 1280x720
+  if (currentGalleryType === 'thumbnails') {
+    const validFiles = [];
+    const rejected = [];
+    const checkFile = (file, idx) => new Promise(resolve => {
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (ext !== 'jpg' && ext !== 'jpeg' && ext !== 'png') {
+        rejected.push(file.name + ' (format bukan JPG/PNG)');
+        resolve(); return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          if (img.naturalWidth < 1280 || img.naturalHeight < 720)
+            rejected.push(`${file.name} (${img.naturalWidth}×${img.naturalHeight} — YouTube mewajibkan min 1280×720)`);
+          else validFiles.push(file);
+          resolve();
+        };
+        img.onerror = () => { rejected.push(file.name + ' (file gambar rusak)'); resolve(); };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+    return Promise.all([...files].map(checkFile)).then(() => {
+      if (rejected.length)
+        toast('⚠️ ' + rejected.length + ' thumbnail DITOLAK (bukan standar YouTube 1280×720 JPG/PNG):\n' + rejected.join('\n'), 'warn');
+      if (!validFiles.length) { event.target.value = ''; return; }
+      uploadGalleryFiles(validFiles);
+    });
+  }
+
+  uploadGalleryFiles([...files]);
+}
+
+function uploadGalleryFiles(files) {
+  if (!currentGalleryCh || !files.length) return;
 
   const fd = new FormData();
   fd.append('yt_id', currentGalleryCh);
@@ -1814,6 +1939,12 @@ function goStep(n) {
               toast('Folder Video+Audio kosong! Upload video sumber (MP4) dulu di Gallery.', 'warn');
               return;
           }
+          // 🔥 BARU: validasi Jml Video Acak tidak boleh lebih dari aset di folder
+          const vidReq = parseInt(document.getElementById('bc-vid-count').value) || 1;
+          if (vidReq > galleryData.base_video.length) {
+              toast(`Jml Video Acak (${vidReq}) melebihi jumlah aset di folder Video+Audio (${galleryData.base_video.length})!`, 'warn');
+              return;
+          }
       }
   }
 
@@ -1854,11 +1985,11 @@ function onBcChannelChange() {
   if (typeof updateCenterLogo === 'function') updateCenterLogo(); 
   
   if (!yt_id) { 
-      ['bc-audio-status', 'bc-bg-status', 'bc-title-status'].forEach(id => { 
+      ['bc-audio-status', 'bc-bg-status', 'bc-base-status', 'bc-thumb-status', 'bc-title-status'].forEach(id => { 
           const el = document.getElementById(id);
           if (el) { el.textContent = 'Pilih channel dulu'; el.style.color = 'var(--text2)'; }
       }); 
-      galleryData = { audio: [], background: [], thumbnails: [] }; 
+      galleryData = { audio: [], background: [], thumbnails: [], base_video: [] }; 
       if (typeof updatePreviewBackground === 'function') updatePreviewBackground(''); 
       if (typeof refreshDescPresetList === 'function') refreshDescPresetList(); 
       return; 
@@ -1869,6 +2000,7 @@ function onBcChannelChange() {
     const aCount = (data.audio || []).length; 
     const bCount = (data.background || []).length; 
     const vCount = (data.base_video || []).length; // <--- TAMBAHAN UNTUK TAB BARU
+    const thCount = (data.thumbnails || []).length; // <--- BARU: STATUS THUMBNAILS
     const tCount = (titleBankData && titleBankData[yt_id] ? titleBankData[yt_id].length : 0);
     
     const setStatus = (id, count, unit) => { 
@@ -1883,6 +2015,7 @@ function onBcChannelChange() {
     setStatus('bc-audio-status', aCount, 'Audio'); 
     setStatus('bc-bg-status', bCount, 'BG Biasa'); 
     setStatus('bc-base-status', vCount, 'Video+Audio'); // <--- TAMBAHAN STATUS
+    setStatus('bc-thumb-status', thCount, 'Thumbnails'); // <--- BARU: STATUS THUMBNAILS
     setStatus('bc-title-status', tCount, 'Judul di bank'); 
     if (typeof updatePreviewBackground === 'function') updatePreviewBackground(yt_id);
   }).catch(() => {}); 
@@ -2119,6 +2252,7 @@ function processBatch() {
     count: count,
     source_mode: document.getElementById('bc-source-mode').value,
     mp3_per_video: parseInt(document.getElementById('bc-mp3-count').value) || 5,
+    vid_per_video: parseInt(document.getElementById('bc-vid-count').value) || 1,   // 🔥 BARU: Jml Video Acak utk mode Video Utuh
     bg_count: parseInt(document.getElementById('bc-bg-count').value) || 1,
     target_duration_hours: target_durations_hours[0],
     target_durations_array: target_durations_hours,
@@ -2233,6 +2367,7 @@ function getVisConfig() {
     max_height: parseFloat(document.getElementById('bc-maxh')?.value || 40),
     idle_height: parseFloat(document.getElementById('bc-idle')?.value || 5),
     bar_count: parseInt(document.getElementById('bc-bars')?.value || 64),
+    bar_width: parseInt(document.getElementById('bc-bar-width')?.value || 12),   // 🔥 BARU: Bar Width manual
     reactivity: parseFloat(document.getElementById('bc-react')?.value || 0.66),
     spacing: parseInt(document.getElementById('bc-gap')?.value || 3),
     part_amount: parseInt(document.getElementById('bc-parts')?.value || 3),
@@ -2282,11 +2417,12 @@ function loadVisPreset(name) {
   
   const map = [
     ['bc-pos-x',  'vv-px', '% X'], ['bc-pos-y',  'vv-py', '% Y'], ['bc-pos-x2', 'vv-px2', '% X'], ['bc-pos-y2', 'vv-py2', '% Y'],
-    ['bc-width',  'vv-wp', '%'],   ['bc-maxh',   'vv-mh', '%'],   ['bc-idle',   'vv-ih', 'px'],  ['bc-bars',   'vv-bc', ''],
+    ['bc-width',  'vv-wp', '%'],   ['bc-maxh',   'vv-mh', '%'],       ['bc-idle',   'vv-ih', 'px'],  ['bc-bars',   'vv-bc', ''],
+    ['bc-bar-width', 'vv-bw', 'px'], // 🔥 BARU: Bar Width
     ['bc-react',  'vv-r',  'x'],   ['bc-gap',    'vv-sp', 'px'],  ['bc-parts',  'vv-pa', ''],    ['bc-pspd',   'vv-ps', 'x'],
     ['bc-rotation-speed', 'vv-rs', ''], ['bc-glow-intensity', '', ''], ['bc-bg-zoom', 'vv-bgz', '%']
   ];
-  const keys = ['pos_x','pos_y','pos_x2','pos_y2','width_pct','max_height','idle_height','bar_count','reactivity','spacing','part_amount','part_speed','rotation_speed','glow_intensity','bg_zoom'];
+  const keys = ['pos_x','pos_y','pos_x2','pos_y2','width_pct','max_height','idle_height','bar_count','bar_width','reactivity','spacing','part_amount','part_speed','rotation_speed','glow_intensity','bg_zoom'];
   map.forEach(([elId, lblId, unit], i) => {
     const el = document.getElementById(elId);
     if (el && p[keys[i]] !== undefined) {
@@ -2366,10 +2502,23 @@ function onVisModeChange() {
 function updatePreviewBackground(yt_id) {
   const bgVid = document.getElementById('preview_bg_vid'); const bgImg = document.getElementById('preview_bg_img');
   if (!bgVid || !bgImg) return;
-  if (!yt_id || !galleryData.background || !galleryData.background.length) { bgVid.style.display = 'none'; bgImg.style.display = 'none'; return; }
-  const bgFiles = galleryData.background; const randBg = bgFiles[Math.floor(Math.random() * bgFiles.length)].name;
-  const ext = randBg.split('.').pop().toLowerCase(); const url = `/uploads/${yt_id}/backgrounds/${randBg}`;
-  if (['mp4', 'webm', 'mov'].includes(ext)) { bgImg.style.display = 'none'; bgVid.src = url; bgVid.style.display = 'block'; bgVid.play().catch(() => {}); } 
+  if (!yt_id) { bgVid.style.display = 'none'; bgImg.style.display = 'none'; return; }
+
+  // 🔥 BARU: background preview mengikuti Jalur Render Engine yang aktif.
+  // Mode Video Utuh: background = video acak dari folder base_videos (bukan folder backgrounds).
+  const mode = document.getElementById('bc-source-mode')?.value || 'mix';
+  let files = [], folder = '';
+  if (mode === 'single_video') {
+      files = galleryData.base_video || [];
+      folder = 'base_videos';
+  } else {
+      files = galleryData.background || [];
+      folder = 'backgrounds';
+  }
+  if (!files.length) { bgVid.style.display = 'none'; bgImg.style.display = 'none'; return; }
+  const randBg = files[Math.floor(Math.random() * files.length)].name;
+  const ext = randBg.split('.').pop().toLowerCase(); const url = `/uploads/${yt_id}/${folder}/${randBg}`;
+  if (['mp4', 'webm', 'mov'].includes(ext)) { bgImg.style.display = 'none'; bgVid.src = url; bgVid.style.display = 'block'; /* video tidak di-autoplay; diputar manual saat Play preview */ }
   else { bgVid.style.display = 'none'; bgImg.src = url; bgImg.style.display = 'block'; }
 }
 
@@ -2462,9 +2611,16 @@ function drawLivePreview() {
     
     const bgImg = document.getElementById('preview_bg_img');
     const bgVid = document.getElementById('preview_bg_vid');
-    if (bgImg && bgImg.style.display !== 'none' && bgImg.src && bgImg.complete) {
+
+    // 🔥 BARU: Mode Video Utuh → video dari base_videos dirender langsung sebagai background
+    // di canvas (video diputar terpisah untuk audio, jadi kita render frame video ke canvas
+    // berdasarkan mode yang aktif, bukan hanya display CSS).
+    const srcMode = document.getElementById('bc-source-mode')?.value || 'mix';
+    if (srcMode === 'single_video' && bgVid && bgVid.src && bgVid.readyState >= 2) {
+        try { ctx.drawImage(bgVid, offsetX, offsetY, bgW, bgH); } catch(e) {}
+    } else if (bgImg && bgImg.style.display !== 'none' && bgImg.src && bgImg.complete) {
         try { ctx.drawImage(bgImg, offsetX, offsetY, bgW, bgH); } catch(e) {}
-    } else if (bgVid && bgVid.style.display !== 'none' && bgVid.readyState >= 2) {
+    } else if (bgVid && bgVid.src && bgVid.readyState >= 2) {
         try { ctx.drawImage(bgVid, offsetX, offsetY, bgW, bgH); } catch(e) {}
     }
     
@@ -2487,11 +2643,24 @@ function drawLivePreview() {
         let currentWidth = (cfg.vis_instance === 'double') ? cfg.width_pct * 0.45 : cfg.width_pct;
         
         const totW = cw * (currentWidth / 100);
-        const barW = Math.max(2, (totW - (cfg.spacing * (barCount - 1))) / barCount);
+        // 🔥 BARU: barW manual dari slider "Bar Width" (default 12px). Kalau 0 atau kosong,
+        // pakai hitungan otomatis (lebar total / jumlah bar) seperti sebelumnya.
+        // 🔥 FIX: pastikan sisa area untuk bar tidak pernah negatif (gap kecilkan proporsional),
+        // agar saat Width Pct = 100% & bar count banyak, bar tetap tersebar simetris di tengah.
+        let barW = (cfg.bar_width && cfg.bar_width > 0) ? cfg.bar_width : 0;
+        if (barW <= 0) {
+            const maxGapTotal = totW * 0.4; // gap tidak boleh menelan >40% area
+            const usedGap = Math.min(cfg.spacing * (barCount - 1), maxGapTotal);
+            barW = Math.max(2, (totW - usedGap) / barCount);
+        }
         const centerX = cw * (currentPosX / 100);
         const centerY = ch * (currentPosY / 100);
         const maxBarH = ch * (cfg.max_height / 100);
-        const idleH = Math.min(maxBarH, cfg.idle_height);
+        // 🔥 BARU: saat Live Audio Preview diputar, idleHeight diturunkan agar bar terlihat
+        // datar saat diam dan lebih responsif terhadap volume (mirip perilaku backend).
+        const idleH = (typeof isPreviewPlaying !== 'undefined' && isPreviewPlaying)
+            ? Math.min(maxBarH, cfg.idle_height * 0.15)
+            : Math.min(maxBarH, cfg.idle_height);
 
         ctx.shadowBlur = cfg.enable_glow ? cfg.glow_intensity : 0;
 
@@ -2499,17 +2668,23 @@ function drawLivePreview() {
             const startX = centerX - totW / 2; const baseY = centerY;
             for (let i = 0; i < barCount; i++) {
                 const height = Math.max(2, Math.max(idleH, finalBars[i] * maxBarH));
-                const x = startX + i * (barW + cfg.spacing);
+                // 🔥 FIX: rentangkan bar secara simetris terhadap totW (bar terakhir berhenti di startX+totW),
+                // bukan menyebar dengan gap penuh yang bisa mendorong bar keluar area saat Width Pct 100%.
+                const x = startX + (totW / barCount) * i;
+                const bw = (cfg.bar_width && cfg.bar_width > 0) ? cfg.bar_width
+                    : Math.max(2, (totW / barCount) - cfg.spacing);
                 let y1 = (cfg.bar_style === 'center') ? baseY - (height / 2) : baseY - height;
-                if (x + barW <= cw && y1 >= 0) {
+                if (x + bw <= cw && y1 >= 0) {
                     const color = getVisualColor(i, barCount);
-                    ctx.shadowColor = color; ctx.fillStyle = color; ctx.fillRect(x, y1, barW, height);
-                    ctx.fillStyle = '#ffffff'; ctx.fillRect(x + barW*0.25, y1, barW*0.5, height);
+                    ctx.shadowColor = color; ctx.fillStyle = color; ctx.fillRect(x, y1, bw, height);
+                    ctx.fillStyle = '#ffffff'; ctx.fillRect(x + bw*0.25, y1, bw*0.5, height);
                 }
             }
         } else if (cfg.bar_style === 'horizontal') {
             const totH = ch * (currentWidth / 100);
-            const barH = Math.max(2, (totH - (cfg.spacing * (barCount - 1))) / barCount);
+            // 🔥 BARU: "lebar" bar horizontal juga mengikuti slider Bar Width
+            const barH = (cfg.bar_width && cfg.bar_width > 0) ? cfg.bar_width
+                : Math.max(2, (totH - (cfg.spacing * (barCount - 1))) / barCount);
             const startY = centerY - totH / 2;
             for (let i = 0; i < barCount; i++) {
                 const width = Math.max(2, Math.max(idleH, finalBars[i] * maxBarH));
@@ -2632,7 +2807,9 @@ function drawLivePreview() {
 
         // ---- ATAS & BAWAH ----
         // Gunakan availW alih-alih cw agar menggambar di area yang aman dari pinggir
-        const barW = Math.max(1, (availW - space * (n - 1)) / n);
+        // 🔥 BARU: ikuti slider Bar Width kalau diisi
+        const barW = (cfg.bar_width && cfg.bar_width > 0) ? cfg.bar_width
+            : Math.max(1, (availW - space * (n - 1)) / n);
         for (let i = 0; i < n; i++) {
             const height = Math.max(2, Math.max(idleV, centeredBars[i] * maxLenVert));
             
@@ -2774,28 +2951,96 @@ window.addEventListener('resize', function() {
 // ────────────────────────────────────────────────────────
 //  TASK MONITOR
 // ────────────────────────────────────────────────────────
+let fetchTaskFailStreak = 0;
 function fetchServerTasks() {
-  fetch('/api/get_schedule').then(r => r.json()).then(data => { serverData = data; renderTasks(); }).catch(() => {});
+  fetch('/api/get_schedule').then(r => {
+    const ct = r.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) throw new Error('NON_JSON');
+    return r.json();
+  }).then(data => {
+    fetchTaskFailStreak = 0;
+    serverData = data; renderTasks();
+  }).catch(() => {
+    // 🔥 BARU: kalau fetch gagal (sesi login habis / koneksi putus),
+    // daftar task tidak boleh tampak "hilang" diam-diam — beri tahu user.
+    fetchTaskFailStreak++;
+    if (fetchTaskFailStreak === 3) toast('Koneksi ke server gagal. Task tetap ada di server — silakan login ulang / cek koneksi.', 'error');
+  });
 }
 
 function renderTasks() {
   const list = document.getElementById('taskList'); const hist = document.getElementById('historyTbl');
   const allActive = [...browserQueue, ...serverData.active];
+
+  // ── Helpers untuk pengelompokan per channel (tampilan saja) ──
+  const chName = (yt_id) => {
+    const c = channels.find(x => x.yt_id === yt_id);
+    return c ? c.name : (yt_id ? 'Channel Tidak Dikenal' : 'Tanpa Channel');
+  };
+  const groupDiv = (name, count, ico) => `<div class="ch-group-head"><span class="ch-group-ico">${ico}</span><span class="ch-group-name">${name}</span><span class="pill p-cyan" style="margin-left:auto;font-size:9px;padding:2px 8px">${count}</span></div>`;
+  const sortKeys = (groups, unknownKey) => Object.keys(groups).sort((a, b) => {
+    if (a === unknownKey) return 1;
+    if (b === unknownKey) return -1;
+    return channels.findIndex(x => x.yt_id === a) - channels.findIndex(x => x.yt_id === b);
+  });
   document.getElementById('q-badge').textContent = allActive.length + ' aktif';
   const badge = document.getElementById('task-badge');
   if (allActive.length) { badge.style.display = 'inline'; badge.textContent = allActive.length; } else badge.style.display = 'none';
   document.getElementById('tm-ch').textContent = channels.length; document.getElementById('tm-act').textContent = allActive.length; document.getElementById('tm-done').textContent = (serverData.history || []).length;
   if (!allActive.length) { list.innerHTML = `<div style="text-align:center;padding:24px;color:var(--muted);font-family:var(--font-m);font-size:11px">Tidak ada task aktif.</div>`; } 
   else {
-    list.innerHTML = [...browserQueue.map(t => `<div class="task-row"><div class="task-icon">📤</div><div class="task-info"><div class="task-name">${t.judul || 'Task'}</div><div class="task-meta">${t.jadwal || ''}</div></div><span class="pill p-yellow" style="flex-shrink:0">${t.status || 'Menunggu'}</span><button class="cancel-btn" onclick="cancelBrowserTask(${JSON.stringify(t.id)})">Batalkan</button></div>`),
-      ...serverData.active.map(t => `<div class="task-row"><div class="task-icon">⚙️</div><div class="task-info"><div class="task-name">${t.title || 'Task'}</div><div class="task-meta">${t.time || ''}</div></div><span class="pill p-cyan" style="flex-shrink:0;max-width:200px;white-space:normal;line-height:1.3">${t.status || '—'}</span><button class="stop-btn" onclick="stopTask(${Number(t.id)})">Stop</button></div>`)
-    ].join('');
+    // 🔥 BARU: RENDER & UPLOAD QUEUE dikelompokkan per channel.
+    // browserQueue = task upload lokal (belum punya channel); server task punya yt_id di blueprint.
+    // Urutan proses TIDAK berubah — tetap publish_date terdekat duluan (diatur server).
+    const groups = {};
+    const unknownKey = '__unknown__';
+    browserQueue.forEach(t => {
+      const key = unknownKey;
+      if (!groups[key]) groups[key] = []; groups[key].push(t);
+    });
+    serverData.active.forEach(t => {
+      const yt = (t.blueprint && t.blueprint.yt_id) || t.yt_id || '';
+      const key = yt || unknownKey;
+      if (!groups[key]) groups[key] = []; groups[key].push(t);
+    });
+    list.innerHTML = sortKeys(groups, unknownKey).map(key => {
+      const items = groups[key];
+      const isUnknown = key === unknownKey;
+      const name = isUnknown ? 'Pending Upload Lokal' : chName(key);
+      let html = groupDiv(name, items.length, isUnknown ? '📤' : '📺');
+      items.forEach(t => {
+        if (isUnknown) {
+          html += `<div class="task-row"><div class="task-icon">📤</div><div class="task-info"><div class="task-name">${t.judul || 'Task'}</div><div class="task-meta">${t.jadwal || ''}</div></div><span class="pill p-yellow" style="flex-shrink:0">${t.status || 'Menunggu'}</span><button class="cancel-btn" onclick="cancelBrowserTask(${JSON.stringify(t.id)})">Batalkan</button></div>`;
+        } else {
+          // 🔥 BARU: task yg sedang ANTRE/menunggu (Queue, Cooldown, Ditunda, Dijadwalkan)
+          // diberi sorot KUNING + pill kuning + ikon ⏳ agar mudah dibedakan.
+          const _st = String(t.status || '');
+          const _qw = _st.includes('Queue') || _st.includes('Menunggu reset') || _st.includes('Cooldown') || _st.includes('Ditunda') || _st.includes('Dijadwalkan');
+          html += `<div class="task-row${_qw ? ' q-waiting' : ''}"><div class="task-icon">${_qw ? '⏳' : '⚙️'}</div><div class="task-info"><div class="task-name">${t.title || 'Task'}</div><div class="task-meta">${t.time || ''}${t.thumb_status ? `<span style="color:var(--text2);font-size:10px"> · 🖼️ ${t.thumb_status}</span>` : ''}</div></div><span class="pill ${_qw ? 'p-yellow' : 'p-cyan'}" style="flex-shrink:0;max-width:200px;white-space:normal;line-height:1.3">${t.status || '—'}</span><button class="stop-btn" onclick="stopTask(${Number(t.id)})">Stop</button></div>`;
+        }
+      });
+      return html;
+    }).join('');
   }
   if (!(serverData.history || []).length) { hist.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:16px;color:var(--muted);font-family:var(--font-m);font-size:11px">Belum ada history.</td></tr>`; } 
   else {
-    hist.innerHTML = serverData.history.map(t => {
-      const c = t.status.includes('❌') ? 'var(--accent2)' : 'var(--muted)';
-      return `<tr><td><span style="font-family:var(--font-m);font-size:10px;color:var(--muted)">#${t.id}</span></td><td style="font-weight:700">${t.title || '—'}</td><td style="color:${c};font-weight:600">${t.status}</td></tr>`;
+    // 🔥 BARU: HISTORY dikelompokkan per channel (tampilan saja, urut tetap sesuai riwayat tersimpan).
+    const hGroups = {};
+    const unknownHKey = '__unknownH__';
+    serverData.history.forEach(t => {
+      const yt = (t.blueprint && t.blueprint.yt_id) || t.yt_id || '';
+      const key = yt || unknownHKey;
+      if (!hGroups[key]) hGroups[key] = []; hGroups[key].push(t);
+    });
+    hist.innerHTML = sortKeys(hGroups, unknownHKey).map(key => {
+      const items = hGroups[key];
+      const isUnknown = key === unknownHKey;
+      const name = isUnknown ? 'Channel Tidak Dikenal' : chName(key);
+      const rows = items.map(t => {
+        const c = t.status.includes('❌') ? 'var(--accent2)' : 'var(--muted)';
+        return `<tr><td><span style="font-family:var(--font-m);font-size:10px;color:var(--muted)">#${t.id}</span></td><td style="font-weight:700">${t.title || '—'}</td><td style="color:${c};font-weight:600">${t.status}${t.thumb_status ? `<br><span style="font-size:10px;color:var(--text2);font-weight:400">🖼️ ${t.thumb_status}</span>` : ''}</td></tr>`;
+      }).join('');
+      return `<tr><td colspan="3" style="padding:8px 4px 2px;border:none;background:transparent">${groupDiv(name, items.length, '🗂')}</td></tr>` + rows;
     }).join('');
   }
   const bnBadge = document.getElementById('bn-badge');
@@ -2820,6 +3065,15 @@ function cancelBrowserTask(id) {
 function clearHistory() {
   if (!confirm('Bersihkan riwayat?')) return;
   fetch('/api/clear_history', { method: 'POST' }).then(r => r.json()).then(d => { toast(d.message, 'success'); fetchServerTasks(); }).catch(() => toast('Gagal menghapus riwayat', 'error'));
+}
+
+// 🔥 BARU: memulihkan task gagal (watchdog stuck) dari history ke antrean aktif
+function recoverFailedTasks() {
+  if (!confirm('Pulihkan task yang digagalkan otomatis ke antrean render?\nJadwal tayang & judul tetap utuh.')) return;
+  fetch('/api/recover_failed_tasks', { method: 'POST' }).then(r => r.json()).then(d => {
+    if (d.recovered) { toast(`${d.recovered} task dipulihkan ke antrean ✓`, 'success'); fetchServerTasks(); }
+    else { toast('Tidak ada task gagal yang perlu dipulihkan', 'info'); }
+  }).catch(() => toast('Gagal memulihkan task', 'error'));
 }
 
 // ────────────────────────────────────────────────────────
@@ -2900,11 +3154,24 @@ let realtimeBars = new Array(64).fill(0);
 async function loadPreviewAudioList() {
     const yt_id = document.getElementById('bc-channel').value; const select = document.getElementById('preview-audio-select');
     if (!yt_id) { select.innerHTML = '<option value="">-- Pilih channel dulu --</option>'; return; }
+
+    // 🔥 BARU: sumber list preview mengikuti Jalur Render Engine yang aktif.
+    // Mode Video Utuh (single_video) pakai folder base_videos (audio diekstrak dari video, tapi
+    // browser bisa memutar MP4 langsung — elemen <video> tetap bisa di-feed ke WebAudio API).
+    const mode = document.getElementById('bc-source-mode')?.value || 'mix';
     try {
-        const res = await fetch(`/api/get_gallery?yt_id=${yt_id}`); const data = await res.json(); const audios = data.audio || [];
-        if (!audios.length) { select.innerHTML = '<option value="">-- Tidak ada audio di gallery --</option>'; return; }
+        const res = await fetch(`/api/get_gallery?yt_id=${yt_id}`); const data = await res.json();
+        let items = [], folder = '', extLabel = '';
+        if (mode === 'single_video') {
+            items = data.base_video || [];
+            folder = 'base_videos'; extLabel = ' 🎬 (Video sumber)';
+        } else {
+            items = data.audio || [];
+            folder = 'audios'; extLabel = ' 🎵 (MP3)';
+        }
+        if (!items.length) { select.innerHTML = `<option value="">-- Tidak ada audio di gallery${mode === 'single_video' ? ' (folder Video+Audio kosong)' : ''} --</option>`; return; }
         select.innerHTML = '<option value="">-- Pilih audio preview --</option>' + 
-            audios.map(a => `<option value="/uploads/${yt_id}/audios/${encodeURIComponent(a.name)}">${a.name}</option>`).join('');
+            items.map(a => `<option value="/uploads/${yt_id}/${folder}/${encodeURIComponent(a.name)}">${a.name}${extLabel}</option>`).join('');
     } catch(e) { console.error(e); }
 }
 
@@ -2912,14 +3179,61 @@ async function startAudioPreview() {
     const select = document.getElementById('preview-audio-select'); const audioUrl = select.value;
     if (!audioUrl) { toast('Pilih audio dulu!', 'warn'); return; }
     stopAudioPreview();
+
+    // 🔥 BARU: Mode Video Utuh → sumbernya MP4. Audio diambil dari elemen <video> background
+    // (MediaElementSource bisa menerima HTMLVideoElement), sehingga audio+visual bisa sinkron
+    // dan background video otomatis tampil di canvas preview.
+    const srcMode = document.getElementById('bc-source-mode')?.value || 'mix';
+    const isVideoSource = srcMode === 'single_video' && /\/base_videos\//.test(audioUrl);
+
     try {
         if (!previewAudioContext) previewAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-        previewAudioElement = new Audio(); previewAudioElement.src = audioUrl; previewAudioElement.crossOrigin = "anonymous";
-        previewSourceNode = previewAudioContext.createMediaElementSource(previewAudioElement);
-        previewAnalyserNode = previewAudioContext.createAnalyser();
-        previewAnalyserNode.fftSize = 1024; previewAnalyserNode.smoothingTimeConstant = 0.8;
-        previewSourceNode.connect(previewAnalyserNode); previewAnalyserNode.connect(previewAudioContext.destination);
-        await previewAudioContext.resume(); previewAudioElement.play(); isPreviewPlaying = true;
+
+        let sourceEl;
+        if (isVideoSource) {
+            // 🔥 BARU: elemen video background dipakai sebagai sumber audio & visual.
+            // Elemen <video> cuma boleh sekali terhubung ke MediaElementSourceNode,
+            // jadi kita cache node-nya (per elemen) dan pakai ulang kalau sudah ada.
+            const bgVid = document.getElementById('preview_bg_vid'); const bgImg = document.getElementById('preview_bg_img');
+            bgVid.volume = 0.3; bgVid.muted = false; // suara rendah biar gak berisik tapi tetap masuk Analyser
+            bgVid.crossOrigin = "anonymous";
+            bgVid.playsInline = true; bgVid.loop = false;
+            try { bgVid.currentTime = 0; } catch(e) {} // reset posisi sebelum ganti sumber
+            if (bgImg) bgImg.style.display = 'none';
+            bgVid.style.display = 'block';
+            sourceEl = bgVid;
+            // Muat metadata video dulu (src) SEBELUM menghubungkan MediaElementSourceNode,
+            // agar elemen sudah dalam state valid saat connect dipanggil.
+            bgVid.src = audioUrl;
+            try { await new Promise((ok, fail) => { bgVid.addEventListener('loadedmetadata', ok, { once: true }); bgVid.addEventListener('error', () => fail(new Error('Gagal memuat video. Format/kodek tidak didukung browser.')), { once: true }); if (bgVid.readyState >= 1) ok(); }); } catch(e) { throw e; }
+            if (!bgVid.__vidSourceNode) {
+                bgVid.__vidSourceNode = previewAudioContext.createMediaElementSource(bgVid);
+                bgVid.__vidAnalyser = previewAudioContext.createAnalyser();
+                bgVid.__vidAnalyser.fftSize = 1024;
+                bgVid.__vidAnalyser.smoothingTimeConstant = 0.8;
+                bgVid.__vidSourceNode.connect(bgVid.__vidAnalyser);
+                bgVid.__vidAnalyser.connect(previewAudioContext.destination);
+            }
+            previewSourceNode = bgVid.__vidSourceNode;
+            previewAnalyserNode = bgVid.__vidAnalyser;
+        } else {
+            previewAudioElement = new Audio(); previewAudioElement.src = audioUrl; previewAudioElement.crossOrigin = "anonymous";
+            sourceEl = previewAudioElement;
+            previewSourceNode = previewAudioContext.createMediaElementSource(sourceEl);
+            previewAnalyserNode = previewAudioContext.createAnalyser();
+        }
+        if (!isVideoSource) {
+            previewAnalyserNode.fftSize = 1024; previewAnalyserNode.smoothingTimeConstant = 0.8;
+            previewSourceNode.connect(previewAnalyserNode); previewAnalyserNode.connect(previewAudioContext.destination);
+        }
+        await previewAudioContext.resume();
+        try {
+            await sourceEl.play();
+        } catch(playErr) {
+            // 🔥 Autoplay diblokir atau error load media → tampilkan pesan yang jelas
+            throw new Error('Video tidak dapat diputar: ' + (playErr.message || playErr.name || 'format tidak didukung browser'));
+        }
+        isPreviewPlaying = true;
         
         document.getElementById('preview-status').innerHTML = '🎵 Preview sedang diputar...';
         document.getElementById('preview-play-btn').style.opacity = '0.5';
@@ -2943,9 +3257,16 @@ async function startAudioPreview() {
 }
 
 function stopAudioPreview() {
+    // 🔥 BARU: hentikan juga elemen video background kalau tadi dipakai sebagai sumber audio.
+    // Node audio video TIDAK diputus (caching) — pause & bersihkan state agar play berikutnya bersih.
+    const bgVid = document.getElementById('preview_bg_vid');
+    if (bgVid && bgVid.__vidSourceNode) {
+        try { bgVid.pause(); } catch(e) {}
+        try { bgVid.removeAttribute('src'); bgVid.load(); } catch(e) {}
+    }
     if (previewAudioElement) { previewAudioElement.pause(); previewAudioElement.src = ''; previewAudioElement = null; }
-    if (previewSourceNode) { previewSourceNode.disconnect(); previewSourceNode = null; }
-    if (previewAnalyserNode) { previewAnalyserNode.disconnect(); previewAnalyserNode = null; }
+    if (previewSourceNode) { try { previewSourceNode.disconnect(); } catch(e) {} previewSourceNode = null; }
+    if (previewAnalyserNode) { try { previewAnalyserNode.disconnect(); } catch(e) {} previewAnalyserNode = null; }
     isPreviewPlaying = false;
     document.getElementById('preview-status').innerHTML = 'Preview dihentikan';
     document.getElementById('preview-play-btn').style.opacity = '1'; document.getElementById('preview-play-btn').disabled = false;
@@ -2985,11 +3306,17 @@ function onVisStepOpened() { loadPreviewAudioList(); }
 function onSourceModeChange() {
     const mode = document.getElementById('bc-source-mode').value;
     const classicWrap = document.getElementById('classic-settings-wrap');
+    const vidWrap = document.getElementById('videoutuh-settings-wrap');
     if (mode === 'single_video') {
         classicWrap.style.display = 'none';
+        vidWrap.style.display = 'block';   // 🔥 BARU: kolom Jml Video Acak utk mode Video Utuh
     } else {
         classicWrap.style.display = 'block';
+        vidWrap.style.display = 'none';
     }
+    // 🔥 BARU: muat ulang list preview sesuai mode yang aktif (audios vs base_videos)
+    stopAudioPreview();
+    if (typeof loadPreviewAudioList === 'function') loadPreviewAudioList();
 }
 </script>
 
