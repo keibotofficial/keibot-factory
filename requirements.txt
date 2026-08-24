@@ -10,3 +10,4 @@ imageio==2.31.5
 imageio-ffmpeg==0.4.9
 psutil==5.9.5
 faster-whisper
+Pillow==10.1.0
