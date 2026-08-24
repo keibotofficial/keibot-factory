@@ -1,4 +1,4 @@
-import os, time, queue, threading, subprocess, random, json, shutil, math
+import os, time, queue, threading, subprocess, random, json, shutil, math, re
 import numpy as np
 import cv2, librosa, imageio
 import datetime as dt
@@ -13,6 +13,7 @@ from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
+from core.resource_gate import acquire_resource, release_resource
 
 # ==========================================
 # 🛡️ SETUP & MONITORING
@@ -69,6 +70,9 @@ app = Flask(__name__, static_folder=os.path.join(BASE_DIR, 'static'))
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 CONFIG_FILE = os.path.join(BASE_DIR, 'config.json')
 
+from clipper.routes import clipper_bp
+app.register_blueprint(clipper_bp, url_prefix='/api/clip')
+
 def is_configured(): return os.path.exists(CONFIG_FILE)
 def load_bot_config():
     if is_configured():
@@ -97,7 +101,7 @@ def setup():
             new_secret = secrets.token_hex(24)
             with open(CONFIG_FILE, 'w') as f: json.dump({"admin_pin": pin, "secret_key": new_secret}, f, indent=4)
             app.secret_key = new_secret; session['logged_in'] = True
-            return redirect(url_for('index'))
+            return redirect(url_for('hub'))
     return render_template('setup.html', error=error)
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -106,13 +110,23 @@ def login():
     error = None
     if request.method == 'POST':
         if request.form.get('password') == load_bot_config().get('admin_pin'):
-            session['logged_in'] = True; return redirect(url_for('index'))
+            session['logged_in'] = True; return redirect(url_for('hub'))
         else: error = 'Akses Ditolak! PIN Salah.'
     return render_template('login.html', error=error)
 
 @app.route('/logout')
 def logout():
     session.pop('logged_in', None); return redirect(url_for('login'))
+
+@app.route('/hub')
+def hub():
+    # Halaman untuk memilih masuk ke Factory atau Clipper
+    return render_template('hub.html')
+
+@app.route('/clipper')
+def clipper_dashboard():
+    # Halaman UI utama untuk Clipper
+    return render_template('clipper.html')
 
 BASE_UPLOAD = os.path.join(BASE_DIR, "uploads")
 DB_FILE = os.path.join(BASE_DIR, 'channels_db.json')
@@ -153,6 +167,136 @@ def save_tasks_db():
         data = {"active": active_tasks, "history": history_tasks}
         with open(TASKS_FILE, 'w') as f: json.dump(data, f, indent=4)
 
+# ==========================================
+# 🛡️ SISTEM KETAHANAN (ANTI-STUCK & ANTI-LOST)
+# ==========================================
+def send_tg_message(msg):
+    """Kirim pesan ke Telegram kalau token & chat_id tersimpan. Aman gagal silent."""
+    try:
+        bot_config = load_bot_config()
+        token, chat_id = bot_config.get('tg_token'), bot_config.get('tg_chat_id')
+        if not token or not chat_id: return
+        requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"},
+            timeout=15
+        )
+    except Exception:
+        pass
+
+def startup_sanitizer():
+    """🔥 BARU: Bersihkan 'sisa-sisa' setelah VPS mati mendadak.
+    Dipanggil sekali saat aplikasi mulai, sebelum worker jalan."""
+    import subprocess as _sub
+    notifs = []
+    try:
+        # 1. Bunuh ffmpeg zombie yang tertinggal dari proses mati mendadak
+        proc = _sub.run(["pkill", "-9", "-f", "ffmpeg"], capture_output=True)
+        if proc.returncode == 0:
+            notifs.append("🧹 ffmpeg zombie ditemukan & dibersihkan")
+    except Exception:
+        pass
+    # 2. Bersihkan resource gate yang menggantung (proses resource_gate punya state file-nya sendiri)
+    try:
+        release_resource("Factory Worker")
+    except Exception:
+        pass
+    # 3. Bersihkan file sementara task yang tertinggal agar disk tidak penuh & tidak tertukar
+    try:
+        import glob
+        for f in glob.glob(os.path.join(BASE_UPLOAD, "temp_a_*.mp3")) + \
+                 glob.glob(os.path.join(BASE_UPLOAD, "temp_c_*.txt")) + \
+                 glob.glob(os.path.join(BASE_UPLOAD, "temp_v_*.mp4")) + \
+                 glob.glob(os.path.join(BASE_UPLOAD, "loop_*.txt")):
+            os.remove(f)
+    except Exception:
+        pass
+    if notifs:
+        send_tg_message("🛡️ *KeiBot Startup Sanitizer*\n" + "\n".join(notifs) + "\n\n✅ Aplikasi siap, antrean dilanjutkan otomatis.")
+
+def queue_watchdog_worker():
+    """🔥 BARU: Watchdog antrean — task stuck 'Rendering...' > 30 menit otomatis digagalkan
+    & lanjut ke task berikutnya, plus notifikasi Telegram."""
+    STUCK_LIMIT = 60 * 60  # 60 menit (1 jam)
+    while True:
+        time.sleep(60)
+        now = time.time()
+        stuck = []
+        with db_lock:
+            for d in active_tasks:
+                st = d['status']
+                # 🔥 BARU: semua stage dimonitor — termasuk "In Factory Queue"
+                # (task bisa macet di antrean kalau worker error sebelum masuk render).
+                # Pengecualian: status cooldown/dijadwalkan yang memang HARUS menunggu.
+                # 🔥 FIX 2: Tambahkan "Menunggu" ke daftar pengecualian
+                waiting_kind = "Ditunda" in st or "Dijadwalkan" in st or "Menunggu" in st
+                
+                stuck_kind = not waiting_kind and ("Queue" in st or "Rendering" in st or "Meracik" in st
+                              or "Mengunggah" in st or "Upload" in st or "YouTube" in st
+                              or "Antrean" in st or "Extract" in st)
+                if stuck_kind and "updated_at" not in d:
+                    d['updated_at'] = now
+                if stuck_kind and d.get('updated_at', 0) and (now - d['updated_at']) > STUCK_LIMIT:
+                    stuck.append(d['id'])
+            if stuck:
+                save_tasks_db()
+        for sid in stuck:
+            # 🔥 FIX: hentikan worker yang masih memproses task stuck
+            # (tanpa ini, worker tetap jalan sampai selesai → notif SUKSES
+            # terkirim padahal task sudah digagalkan watchdog → notif ganda).
+            stop_flags[sid] = True
+            proc = active_processes.pop(sid, None)
+            if proc is not None:
+                try: proc.terminate(); proc.kill()
+                except Exception: pass
+            with db_lock:
+                for d in active_tasks:
+                    if d['id'] == sid:
+                        move_to_history(sid, f"Gagal ❌ (Stuck >1 jam, otomatis dilanjutkan)")
+                        break
+            send_tg_message(f"⚠️ *Watchdog*: Task #{sid} stuck >1 jam (tidak ada kemajuan).\nOtomatis digagalkan & antrean dilanjutkan ke task berikutnya.")
+
+threading.Thread(target=queue_watchdog_worker, daemon=True).start()
+
+def telegram_status_report_worker():
+    """🔥 UPDATE: Event-based notification — TIDAK lagi per jam.
+    Notifikasi Telegram HANYA dikirim saat ada kejadian penting:
+    • Task berhasil tayang / render selesai ✅
+    • Task gagal ❌ (limit, error upload, dll)
+    • Task dibatalkan/digagalkan watchdog 🛑
+    Laporan digabung tiap menit (buffer) agar tidak spam.
+    """
+    global tg_event_queue     # pakai buffer modul (dideklarasikan di bawah worker)
+    last_flush = time.time()
+    FLUSH_INTERVAL = 60           # kirim kumpulan event maksimal tiap 1 menit
+    MAX_FLUSH = 8                 # kalau event menumpuk >8, kirim segera
+    while True:
+        time.sleep(30)
+        bot_config = load_bot_config()
+        token, chat_id = bot_config.get('tg_token'), bot_config.get('tg_chat_id')
+        if not token or not chat_id: continue
+        # 🔥 Gabung event menjadi 1 pesan (anti-spam)
+        if len(tg_event_queue) >= MAX_FLUSH or (tg_event_queue and time.time() - last_flush >= FLUSH_INTERVAL):
+            events = tg_event_queue[:MAX_FLUSH]
+            tg_event_queue = tg_event_queue[MAX_FLUSH:]
+            last_flush = time.time()
+            msg = "🔔 *KeiBot — Laporan Kejadian*\n\n" + "\n\n".join(events)
+            try: send_tg_message(msg)
+            except Exception: pass
+
+def notify_event(emoji, title, status):
+    """🔥 BARU: masukkan event notifikasi (selesai/gagal) ke buffer Telegram.
+    Event digabung & dikirim maksimal tiap 1 menit agar tidak spam chat."""
+    try:
+        tg_event_queue.append(f"{emoji} *{title[:70]}*\nStatus: {status}")
+    except Exception:
+        pass
+
+tg_event_queue = []  # 🔥 buffer event notifikasi Telegram (dibaca worker di atas)
+
+telegram_status_report_worker_ref = threading.Thread(target=telegram_status_report_worker, daemon=True)
+telegram_status_report_worker_ref.start()
+
 def load_channels():
     if os.path.exists(DB_FILE):
         try:
@@ -175,11 +319,18 @@ _queue_seq = itertools.count()  # tie-breaker biar item dgn jadwal sama tidak di
 
 def _queue_priority(blueprint):
     """Ambil timestamp dari publish_date blueprint agar antrean diproses
-    berdasarkan tanggal & jam paling awal duluan, bukan sekadar urutan masuk."""
+    berdasarkan tanggal & jam paling awal duluan, bukan sekadar urutan masuk.
+    🔥 BARU: 'jaga jadwal' — task yang publish_date-nya sudah lewat diberi boost
+    (didahulukan), biar antrean tidak makin tertinggal dari jadwal."""
     try:
-        return datetime.strptime(blueprint['publish_date'], "%Y-%m-%d %H:%M").timestamp()
+        ts = datetime.strptime(blueprint['publish_date'], "%Y-%m-%d %H:%M").timestamp()
     except Exception:
         return float('inf')  # kalau tanggal tidak valid/kosong, taruh paling belakang
+    # 🔥 BARU: task terlambat dari jadwal diproses duluan (boost 7 hari)
+    overdue_boost = max(0.0, datetime.now().timestamp() - ts)
+    if overdue_boost > 60:  # baru di-boost kalau lewat > 1 menit
+        ts = max(0.0, ts - min(overdue_boost, 7 * 24 * 3600))
+    return ts
 
 def queue_put(blueprint):
     render_queue.put((_queue_priority(blueprint), next(_queue_seq), blueprint))
@@ -190,6 +341,27 @@ def queue_get():
 stop_flags = {}
 active_processes = {}  # 🔥 task_id -> subprocess.Popen aktif, dipakai untuk force-stop instan
 channel_cooldowns = {} 
+
+def load_cooldowns():
+    # 🔥 BARU: muat cooldown rate-limit dari channels_db.json agar TIDAK HILANG saat restart.
+    # Sebelumnya cooldown hanya di memori → restart = cooldown hilang → task langsung
+    # diproses lagi → kena rate-limit YouTube lagi → task "nyangkut" & rawan hilang.
+    global channel_cooldowns
+    for c in database_channel:
+        cd = c.get('cooldown_until')
+        if cd and cd > time.time():
+            channel_cooldowns[c['yt_id']] = cd
+
+def persist_cooldown(yt_id):
+    # 🔥 BARU: simpan cooldown channel permanen ke database setiap kali cooldown dipasang.
+    for c in database_channel:
+        if c['yt_id'] == yt_id:
+            c['cooldown_until'] = channel_cooldowns.get(yt_id, 0)
+            try: save_channels(database_channel)
+            except Exception: pass
+            return
+
+load_cooldowns()
 
 # 🔥 SISTEM NOTIFIKASI LONCENG 🔥
 system_notifications = []
@@ -297,10 +469,51 @@ def get_all_audios(yt_id):
     return files
 
 def get_and_consume_thumbnail(yt_id):
+    """🔥 UPDATE: pilih thumbnail acak (bukan selalu file pertama),
+    validasi ukuran minimal 1280x720 agar YouTube tidak menolak diam-diam."""
     path = get_channel_folder(yt_id, "thumbnails")
-    files = sorted([f for f in os.listdir(path) if f.lower().endswith(('.jpg', '.png', '.jpeg'))])
+    files = [f for f in os.listdir(path) if f.lower().endswith(('.jpg', '.png', '.jpeg'))]
     if not files: return None
-    return os.path.join(path, files[0])
+    # Pilih acak dari folder (lebih bervariasi tiap video, file tidak dihapus/dipakai ulang)
+    chosen = random.choice(files)
+    thumb_path = os.path.join(path, chosen)
+    # 🔥 BARU: validasi ukuran — YouTube mewajibkan >= 1280x720 DAN <= 2MB (2097152 byte)
+    try:
+        from PIL import Image
+        img = Image.open(thumb_path)
+        img.load()
+        if img.width < 1280 or img.height < 720:
+            # File tidak memenuhi standar YouTube — skip & catat di Task Monitor
+            return None
+    except Exception:
+        return None
+    # 🔥 BARU: kalau file > 2MB, kompres otomatis menjadi JPG (batas YouTube: 2097152 byte)
+    max_bytes = 2097152
+    try:
+        if os.path.getsize(thumb_path) > max_bytes:
+            from PIL import Image as PILImage
+            img2 = PILImage.open(thumb_path).convert('RGB')
+            # YouTube hanya butuh max 1920 lebar untuk thumbnail; downscale cukup
+            scale = min(1.0, 1920 / img2.width, 1080 / img2.height)
+            if scale < 1.0:
+                img2 = img2.resize((max(1280, int(img2.width * scale)), max(720, int(img2.height * scale))), PILImage.LANCZOS)
+            # Tulis ke file sementara .jpg lalu pakai itu
+            base, _ = os.path.splitext(thumb_path)
+            tmp_path = base + '_yt_compressed.jpg'
+            quality = 92
+            while quality >= 40:
+                img2.save(tmp_path, 'JPEG', quality=quality, optimize=True)
+                if os.path.getsize(tmp_path) <= max_bytes:
+                    break
+                quality -= 8
+            else:
+                # Fallback terakhir: turunkan skala lagi
+                img3 = img2.resize((1920, 1080), PILImage.LANCZOS)
+                img3.save(tmp_path, 'JPEG', quality=40, optimize=True)
+            return tmp_path
+    except Exception as e:
+        print(f"Thumbnail compress error: {e}")
+    return thumb_path
 
 def get_random_preset(allowed_names=None):
     if not os.path.exists(PRESETS_FILE): return None
@@ -390,29 +603,97 @@ class AudioBrain:
                 
         return vol, hit, final_bars
 
+# Durasi crossfade visual tetap; tidak ditampilkan sebagai opsi UI.
+BACKGROUND_CROSSFADE_SECONDS = 1.0
+
+
 class BackgroundManager:
-    def __init__(self, bg_paths, w, h):
-        self.bg_paths = bg_paths; self.w = w; self.h = h; self.idx = 0; self.reader = None; self.static_bg = None; self.load_current()
-        
+    def __init__(self, bg_paths, w, h, fps=30, crossfade_seconds=BACKGROUND_CROSSFADE_SECONDS):
+        self.bg_paths = bg_paths
+        self.w = w
+        self.h = h
+        self.fps = fps
+        self.idx = 0
+        self.reader = None
+        self.static_bg = None
+        self.last_frame = None
+        self.transition_old = None
+        self.transition_remaining = 0
+        self.crossfade_frames = max(1, int(round(fps * crossfade_seconds)))
+        self.load_current()
+
     def load_current(self):
-        if self.reader: self.reader.close()
+        if self.reader:
+            self.reader.close()
+            self.reader = None
+        self.static_bg = None
         path = self.bg_paths[self.idx]
-        if path.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')): 
+        if path.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
             img = cv2.imread(path)
             if img is not None:
                 self.static_bg = cv2.resize(img, (self.w, self.h))
             else:
                 self.static_bg = np.zeros((self.h, self.w, 3), dtype=np.uint8)
-        else: 
+        else:
             self.reader = imageio.get_reader(path, 'ffmpeg')
-            
+
+    def _read_current_frame(self):
+        if self.static_bg is not None:
+            return self.static_bg.copy()
+        try:
+            frame = self.reader.get_next_data()
+            return cv2.resize(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR), (self.w, self.h))
+        except Exception:
+            return None
+
+    def _read_next_asset_frame(self):
+        # Lewati aset yang tidak dapat dibaca, tetapi tetap mempertahankan urutan loop.
+        for _ in range(len(self.bg_paths)):
+            self.idx = (self.idx + 1) % len(self.bg_paths)
+            self.load_current()
+            frame = self._read_current_frame()
+            if frame is not None:
+                return frame
+        return None
+
+    def _blend_transition_frame(self, new_frame):
+        if self.transition_old is None or self.transition_remaining <= 0:
+            return new_frame
+        completed = self.crossfade_frames - self.transition_remaining + 1
+        alpha = min(1.0, completed / self.crossfade_frames)
+        output = cv2.addWeighted(self.transition_old, 1.0 - alpha, new_frame, alpha, 0.0)
+        self.transition_remaining -= 1
+        if self.transition_remaining <= 0:
+            self.transition_old = None
+        return output
+
     def get_frame(self):
-        if self.static_bg is not None: return self.static_bg.copy()
-        try: return cv2.resize(cv2.cvtColor(self.reader.get_next_data(), cv2.COLOR_RGB2BGR), (self.w, self.h))
-        except: self.idx = (self.idx + 1) % len(self.bg_paths); self.load_current(); return self.get_frame()
-        
+        frame = self._read_current_frame()
+        if frame is not None:
+            if self.transition_remaining > 0:
+                frame = self._blend_transition_frame(frame)
+            self.last_frame = frame.copy()
+            return frame
+
+        # Background selesai. Mulai aset berikutnya dengan crossfade dari frame terakhir.
+        old_frame = self.last_frame.copy() if self.last_frame is not None else None
+        new_frame = self._read_next_asset_frame()
+        if new_frame is None:
+            return old_frame if old_frame is not None else np.zeros((self.h, self.w, 3), dtype=np.uint8)
+
+        if old_frame is not None and self.crossfade_frames > 0:
+            self.transition_old = old_frame
+            self.transition_remaining = self.crossfade_frames
+            frame = self._blend_transition_frame(new_frame)
+        else:
+            frame = new_frame
+        self.last_frame = frame.copy()
+        return frame
+
     def close(self):
-        if self.reader: self.reader.close()
+        if self.reader:
+            self.reader.close()
+            self.reader = None
 
 class VisualEngine:
     def __init__(self, c_bot, c_top, c_part):
@@ -472,7 +753,12 @@ class VisualEngine:
         color_mode = cfg.get('color_mode', 'gradient')
         
         tot_w = w * current_wp
-        bar_w = max(1, int((tot_w - (space * (n - 1))) / n))
+        # 🔥 BARU: Bar Width manual dari slider UI (cfg.bar_width, px). 0/kosong = hitung otomatis.
+        bar_w = int(cfg.get('bar_width', 0) or 0)
+        if not bar_w or bar_w <= 0:
+            # 🔥 FIX: gap dibatasi 40% area agar tidak pernah negatif; distribusi simetris terhadap tot_w
+            used_gap = min(space * (n - 1), int(tot_w * 0.4))
+            bar_w = max(1, int((tot_w - used_gap) / n))
         start_x = int(w * current_px) - int(tot_w / 2)
         base_y = int(h * current_py)
         
@@ -483,7 +769,8 @@ class VisualEngine:
             self.bar_h[i] = (self.bar_h[i] * 0.85) + (target * 0.15)
             height = max(2, int(max(idle, self.bar_h[i] * max_h)))
             
-            x1 = start_x + i * (bar_w + space)
+            # 🔥 FIX: distribusi simetris terhadap tot_w (bar terakhir berhenti di start_x+tot_w)
+            x1 = start_x + int((tot_w / n) * i)
             x2 = x1 + bar_w
             y1 = (base_y - (height // 2)) if bar_style == 'center' else base_y - height
             y2 = (base_y + (height // 2)) if bar_style == 'center' else base_y
@@ -514,18 +801,19 @@ class VisualEngine:
         color_mode = cfg.get('color_mode', 'gradient')
         
         tot_h = h * current_wp
-        bar_h = max(1, int((tot_h - (space * (n - 1))) / n))
+        # 🔥 BARU: "lebar" bar horizontal juga mengikuti cfg.bar_width
+        bar_h = int(cfg.get('bar_width', 0) or 0)
+        if not bar_h or bar_h <= 0:
+            used_gap = min(space * (n - 1), int(tot_h * 0.4))
+            bar_h = max(1, int((tot_h - used_gap) / n))
         start_y = int(h * current_py) - int(tot_h / 2)
         base_x = int(w * current_px)
-        
         if self.bar_h_h is None or len(self.bar_h_h) != n: self.bar_h_h = np.zeros(n)
-        
         for i in range(n):
             target = bars[i] * cfg.get('reactivity', 0.66)
             self.bar_h_h[i] = (self.bar_h_h[i] * 0.85) + (target * 0.15)
             width = max(2, int(max(idle, self.bar_h_h[i] * max_h)))
-            
-            y1, y2 = start_y + i * (bar_h + space), start_y + i * (bar_h + space) + bar_h
+            y1, y2 = start_y + int((tot_h / n) * i), start_y + int((tot_h / n) * i) + bar_h
             x1, x2 = base_x - width, base_x
             
             x1_safe, x2_safe = max(0, min(w, x1)), max(0, min(w, x2))
@@ -552,7 +840,11 @@ class VisualEngine:
         color_mode = cfg.get('color_mode', 'gradient')
 
         tot_w = w * current_wp
-        bar_w = max(1, int((tot_w - (cfg.get('spacing', 3) * (n - 1))) / n))
+        # 🔥 BARU: tebal segmen lingkaran mengikuti cfg.bar_width
+        bar_w = int(cfg.get('bar_width', 0) or 0)
+        if not bar_w or bar_w <= 0:
+            used_gap = min(cfg.get('spacing', 3) * (n - 1), int(tot_w * 0.4))
+            bar_w = max(1, int((tot_w - used_gap) / n))
         center_x, center_y = int(w * current_px), int(h * current_py)
         base_radius = min(tot_w, max_h) * 0.35
 
@@ -614,10 +906,13 @@ class VisualEngine:
         color_mode = cfg.get('color_mode', 'gradient')
         
         tot_w = w * current_wp
-        bar_w = max(1, int((tot_w - (space * (n - 1))) / n))
+        # 🔥 BARU: lebar segmen LED EQ mengikuti cfg.bar_width
+        bar_w = int(cfg.get('bar_width', 0) or 0)
+        if not bar_w or bar_w <= 0:
+            used_gap = min(space * (n - 1), int(tot_w * 0.4))
+            bar_w = max(1, int((tot_w - used_gap) / n))
         start_x = int(w * current_px) - int(tot_w / 2)
         base_y = int(h * current_py)
-        
         # 🔥 1. BALOK PUTUS-PUTUS DIBUAT LEBIH KECIL 🔥
         seg_h = 3     # Tinggi per balok (sebelumnya 6 atau 4)
         seg_gap = 2   # Jarak antar balok
@@ -633,7 +928,7 @@ class VisualEngine:
             num_segs = int(height / (seg_h + seg_gap))
             if num_segs < 1: num_segs = 1
             
-            x1 = start_x + i * (bar_w + space)
+            x1 = start_x + int((tot_w / n) * i)
             x2 = x1 + bar_w
             x1_s, x2_s = max(0, min(w, x1)), max(0, min(w, x2))
             
@@ -690,7 +985,11 @@ class VisualEngine:
             self.bar_h_edge_h = np.zeros(n)
 
         # ---- ATAS & BAWAH (bar tersebar di area tengah layar secara horizontal) ----
-        bar_w = max(1, int((avail_w - (space * (n - 1))) / n))
+        # 🔥 BARU: lebar bar spectrum pinggir layar mengikuti cfg.bar_width
+        bar_w = int(cfg.get('bar_width', 0) or 0)
+        if not bar_w or bar_w <= 0:
+            used_gap = min(space * (n - 1), int(avail_w * 0.4))
+            bar_w = max(1, int((avail_w - used_gap) / n))
         for i in range(n):
             target = centered_bars[i] * reactivity  # Menggunakan centered_bars
             self.bar_h_edge_v[i] = (self.bar_h_edge_v[i] * 0.85) + (target * 0.15)
@@ -936,12 +1235,14 @@ def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg)
     bar_c = int(cfg.get('bar_count', 64))
     
     vis = VisualEngine(c_bot, c_top, c_part)
-    bg = BackgroundManager(bg_paths, w, h)
+    bg = BackgroundManager(bg_paths, w, h, fps=fps)
     audio = AudioBrain(); audio.load(audio_path)
     
     with db_lock:
         for d in active_tasks:
-            if d['id'] == task_id: d['status'] = "Rendering 720p... ⚡"
+            if d['id'] == task_id:
+                d['status'] = "Rendering 720p... ⚡"
+                d['updated_at'] = time.time()  # 🔥 BARU: timestamp untuk watchdog stuck
     save_tasks_db()
 
     cmd = [
@@ -979,28 +1280,58 @@ def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg)
 # ==========================================
 def background_worker():
     global channel_cooldowns
-    
     while True:
-        task = queue_get()
+        task = None
+        temp_cooldowns = []
+        
+        # 🔥 1. GALI ANTREAN: Cari task pertama yang AMAN dari cooldown
+        while not render_queue.empty():
+            ptask = queue_get()
+            pyt_id = ptask['yt_id']
+            
+            if pyt_id in channel_cooldowns and time.time() < channel_cooldowns[pyt_id]:
+                # Jika channel ini masih cooldown, simpan task ke wadah sementara
+                sisa_menit = max(1, int((channel_cooldowns[pyt_id] - time.time()) / 60))
+                with db_lock:
+                    for d in active_tasks:
+                        if d['id'] == ptask['id']:
+                            d['status'] = f"Antrean Ditunda (Cooldown YT {sisa_menit} mnt) ⏳"
+                            d['updated_at'] = time.time()
+                temp_cooldowns.append(ptask)
+            else:
+                # Nemu task yang channel-nya AMAN! Langsung kerjakan.
+                task = ptask
+                break
+        
+        # 🔥 2. Kembalikan task yang kena cooldown tadi ke dalam antrean (tetap prioritas)
+        if temp_cooldowns:
+            save_tasks_db()
+            for t in temp_cooldowns:
+                queue_put(t)
+                render_queue.task_done()
+                
+        # 🔥 3. Jika semua antrean ternyata sedang cooldown, istirahat sejenak
+        if task is None:
+            time.sleep(10)
+            continue
+            
+        # --- MULAI PROSES TASK YANG AMAN ---
         task_id = task['id']
         yt_id = task['yt_id']
         
-        # 🔥 SMART COOLDOWN SYSTEM
+        # Bersihkan status cooldown jika sudah waktunya kedaluwarsa
         if yt_id in channel_cooldowns:
-            if time.time() < channel_cooldowns[yt_id]:
-                sisa_menit = max(1, int((channel_cooldowns[yt_id] - time.time()) / 60))
-                with db_lock:
-                    for d in active_tasks:
-                        if d['id'] == task_id:
-                            d['status'] = f"Antrean Ditunda (Cooldown YT {sisa_menit} mnt) ⏳"
-                save_tasks_db()
-                queue_put(task)
-                render_queue.task_done()
-                time.sleep(5)
-                continue
-            else:
-                del channel_cooldowns[yt_id]
-                
+            del channel_cooldowns[yt_id]
+            try: persist_cooldown(yt_id)
+            except Exception: pass
+        
+        with db_lock:
+            for d in active_tasks:
+                if d['id'] == task_id:
+                    d['status'] = "Mulai Diproses... ⚙️"
+                    d['updated_at'] = time.time()
+        save_tasks_db()
+        
         temp_files = [
             os.path.join(BASE_UPLOAD, f"temp_a_{task_id}.mp3"),
             os.path.join(BASE_UPLOAD, f"temp_c_{task_id}.txt"),
@@ -1009,12 +1340,16 @@ def background_worker():
             os.path.join(BASE_DIR, f"static/final_{task_id}.mp4"),
         ]
         try:
-            if not wait_for_resources(task_id): 
+            # Pasang antrean resource gate di sini
+            acquire_resource("Factory Worker")
+            if stop_flags.get(task_id): 
                 raise Exception("Dibatalkan")
                 
             with db_lock:
                 for d in active_tasks:
-                    if d['id'] == task_id: d['status'] = "Meracik Aset Gallery... ⚙️"
+                    if d['id'] == task_id:
+                        d['status'] = "Meracik Aset Gallery... ⚙️"
+                        d['updated_at'] = time.time()  # 🔥 BARU: timestamp untuk watchdog stuck
             save_tasks_db()
 
             # ============== AWAL BLOK SUMBER KONTEN (UPDATE) ==============
@@ -1034,21 +1369,60 @@ def background_worker():
                 video_paths = [os.path.join(base_videos_dir, f) for f in os.listdir(base_videos_dir) if f.lower().endswith(('.mp4', '.mov', '.webm', '.mkv'))]
                 if not video_paths: raise Exception("Gallery Video+Audio kosong! Upload MP4 sumber ke tab tersebut.")
                 
-                source_video = random.choice(video_paths)
-                bg_paths = [source_video] # Kunci video ini sebagai background utama
+                # 🔥 BARU: Jumlah video acak per final video (default 1 = perilaku lama)
+                vid_req = int(task.get('vid_per_video', 1))
+                vid_req = max(1, min(vid_req, len(video_paths)))
                 
-                # Ekstrak audio dari video ke temp_a.mp3
+                # 🔥 BARU: Pilih N video acak BEDA untuk task ini (diacak ulang tiap render).
+                # Jadi kalau Final Video 30, masing-masing mendapat 5 video acak berbeda.
+                selected_videos = random.sample(video_paths, vid_req)
+                source_video = selected_videos[0]
+                bg_paths = [source_video] # Video pertama sebagai background utama
+                
+                # 🔥 BARU: Concat video utuh (video + audio + subtitle burned jadi satu).
+                # Karena subtitle sudah di-render permanen di dalam MP4, video digabung
+                # tanpa re-encode (copy) agar kualitas & subtitle tidak berubah.
+                if vid_req > 1:
+                    concat_txt = os.path.join(BASE_UPLOAD, f"temp_sv_{task_id}.txt")
+                    with open(concat_txt, 'w', encoding='utf-8') as f:
+                        for vp in selected_videos:
+                            safe_path = os.path.abspath(vp).replace('\\', '/').replace("'", "'\\''")
+                            f.write(f"file '{safe_path}'\n")
+                    merged_video = os.path.join(BASE_UPLOAD, f"temp_mv_{task_id}.mp4")
+                    try:
+                        subprocess.run([get_ffmpeg_path(), '-y', '-f', 'concat', '-safe', '0',
+                                        '-i', concat_txt, '-c', 'copy', merged_video],
+                                       check=True, capture_output=True)
+                    except subprocess.CalledProcessError:
+                        raise Exception("Gagal menggabungkan video acak! Pastikan semua video MP4 punya format/kodek sejenis (misal resolusi & fps sama).")
+                    try: os.remove(concat_txt)
+                    except: pass
+                else:
+                    merged_video = source_video # 1 video: pakai langsung tanpa concat
+                
+                # Ekstrak audio dari video gabungan ke temp_a.mp3 (untuk visualizer)
                 try:
-                    subprocess.run([get_ffmpeg_path(), '-y', '-i', source_video, '-q:a', '0', '-map', 'a', base_audio], check=True, capture_output=True)
+                    subprocess.run([get_ffmpeg_path(), '-y', '-i', merged_video, '-vn', '-q:a', '0', base_audio], check=True, capture_output=True)
                 except subprocess.CalledProcessError:
-                    raise Exception(f"Gagal ekstrak audio! Video {os.path.basename(source_video)} mungkin tidak bersuara.")
+                    raise Exception(f"Gagal ekstrak audio! Video gabungan mungkin tidak bersuara.")
 
                 probe = subprocess.run([get_ffprobe_path(), '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', base_audio], capture_output=True, text=True, check=True)
                 try: base_duration_sec = float(probe.stdout.strip())
                 except: raise Exception("Gagal membaca durasi audio dari video utama!")
 
-                title_vid = os.path.splitext(os.path.basename(source_video))[0]
-                track_schedule.append({'title': title_vid, 'path': source_video, 'start': 0.0, 'end': base_duration_sec, 'duration': base_duration_sec})
+                # 🔥 BARU: track_schedule berisi SEMUA video acak (urutan concat),
+                # supaya Floating Card berganti judul mengikuti nama file tiap segmen.
+                # Judul dibersihkan dari nomor depan, misal '06. Langkah Sabar.mp4' → 'Langkah Sabar'
+                current_sec = 0.0
+                for vp in selected_videos:
+                    probe_vp = subprocess.run([get_ffprobe_path(), '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', vp], capture_output=True, text=True)
+                    try: dur_vp = float(probe_vp.stdout.strip())
+                    except: dur_vp = 0.0
+                    raw_title = os.path.splitext(os.path.basename(vp))[0]
+                    title_vid = re.sub(r'^\d+[\.\)\-\s]*', '', raw_title).strip() if raw_title else raw_title
+                    if not title_vid: title_vid = raw_title
+                    track_schedule.append({'title': title_vid, 'path': os.path.abspath(vp), 'start': current_sec, 'end': current_sec + dur_vp, 'duration': dur_vp})
+                    current_sec += dur_vp
 
             else:
                 # --- JALUR LAMA: MODE KLASIK (MIX MP3) ---
@@ -1103,6 +1477,7 @@ def background_worker():
             preset['use_floating_card'] = task.get('use_floating_card', False)
             preset['track_schedule'] = track_schedule
             preset['channel_name'] = ch_name
+            preset['source_mode'] = source_mode
 
             base_video = os.path.join(BASE_UPLOAD, f"temp_v_{task_id}.mp4")
             final_video = os.path.join(BASE_DIR, f"static/final_{task_id}.mp4")
@@ -1194,7 +1569,9 @@ def background_worker():
                                 if status:
                                     with db_lock:
                                         for d in active_tasks:
-                                            if d['id'] == task_id: d['status'] = f"Mengunggah (Key {index_kunci+1})... {int(status.progress()*100)}% 🚀"
+                                            if d['id'] == task_id:
+                                                d['status'] = f"Mengunggah (Key {index_kunci+1})... {int(status.progress()*100)}% 🚀"
+                                                d['updated_at'] = time.time()
                                     save_tasks_db()
                                 retry_count = 0 
                             except HttpError as e:
@@ -1229,15 +1606,30 @@ def background_worker():
                                         if d['id'] == task_id: d['status'] = "Memasang Thumbnail... 🖼️"
                                 save_tasks_db()
                                 youtube.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(thumb_path)).execute()
-                                try: os.remove(thumb_path)
-                                except: pass
-                            except: pass
+                                with db_lock:
+                                    for d in active_tasks:
+                                        if d['id'] == task_id: d['thumb_status'] = "Terpasang ✓"
+                                # 🔥 UPDATE: file TIDAK dihapus lagi — thumbnail dipilih acak tiap video,
+                                # jadi file bisa dipakai ulang oleh video berikutnya
+                            except Exception as thumb_err:
+                                # 🔥 BARU: error thumbnail kini tercatat di Task Monitor, tidak lagi diam
+                                with db_lock:
+                                    for d in active_tasks:
+                                        if d['id'] == task_id: d['thumb_status'] = f"Gagal: {str(thumb_err)[:80]}"
+                                save_tasks_db()
+                        else:
+                            # 🔥 BARU: kalau folder kosong / semua gambar < 1280x720, catat status
+                            with db_lock:
+                                for d in active_tasks:
+                                    if d['id'] == task_id: d['thumb_status'] = "Tidak ada thumbnail valid (min 1280×720)"
+                            save_tasks_db()
                                 
                         try:
                             if task.get('playlist_id'):
                                 youtube.playlistItems().insert(part='snippet', body={'snippet': {'playlistId': task['playlist_id'], 'resourceId': {'kind': 'youtube#video', 'videoId': video_id}}}).execute()
                         except: pass
                         move_to_history(task_id, f"Tayang! ✅ <a href='https://youtu.be/{video_id}' target='_blank'>[Lihat]</a>")
+                        notify_event("✅", task['title'], f"Tayang di YouTube {ch_name}\nJadwal tayang: {task['publish_date']}")
                         upload_berhasil = True
                         break
                         
@@ -1254,10 +1646,14 @@ def background_worker():
                         elif "uploadLimitExceeded" in reason:
                             pesan_error = "Limit Upload Harian Channel Tercapai!"
                             channel_cooldowns[yt_id] = time.time() + (3600 * 24)
+                            try: persist_cooldown(yt_id)
+                            except Exception: pass
                             break
                         elif "rateLimitExceeded" in reason:
                             pesan_error = "Rate Limit (Terlalu Cepat) - Auto Cooldown 30 Menit"
                             channel_cooldowns[yt_id] = time.time() + 1800
+                            try: persist_cooldown(yt_id)
+                            except Exception: pass
                             break
                         else:
                             pesan_error = f"Ditolak YT: {reason}"
@@ -1267,6 +1663,8 @@ def background_worker():
                         if "invalid_grant" in err_str or "expired" in err_str or "revoked" in err_str:
                             pesan_error = "Sesi Kedaluwarsa (Tautkan Ulang!)"
                             channel_cooldowns[yt_id] = time.time() + (3600 * 24)
+                            try: persist_cooldown(yt_id)
+                            except Exception: pass
                         elif "timeout" in err_str or "connection" in err_str or "broken" in err_str:
                             pesan_error = "Koneksi VPS Putus/Timeout"
                         else:
@@ -1276,9 +1674,12 @@ def background_worker():
                 if not upload_berhasil:
                     if "API Habis" in pesan_error:
                         channel_cooldowns[yt_id] = time.time() + (3600 * 24)
+                        try: persist_cooldown(yt_id)
+                        except Exception: pass
                     raise Exception(pesan_error)
             else:
                 move_to_history(task_id, f"Render Selesai ✅ <a href='/static/final_{task_id}.mp4' target='_blank'>[Download]</a>")
+                notify_event("✅", task['title'], f"Render selesai, di-upload ke YouTube {ch_name}")
         
         except Exception as e:
             err_msg = str(e)
@@ -1291,7 +1692,14 @@ def background_worker():
                 queue_put(task)
             else:
                 move_to_history(task_id, f"Gagal ❌ ({err_msg})")
+                # 🔥 FIX: kalau digagalkan watchdog (stop flag), JANGAN kirim
+                # notif gagal lagi — watchdog sudah mengirim notifikasinya sendiri.
+                if not stop_flags.get(task_id):
+                    notify_event("❌", task['title'], f"Gagal upload di channel {ch_name}\nPenyebab: {err_msg[:120]}")
         finally:
+            # Lepas antrean agar Clipper bisa jalan
+            release_resource("Factory Worker")
+            
             for path in temp_files:
                 try: os.remove(path)
                 except: pass
@@ -1305,7 +1713,19 @@ threading.Thread(target=background_worker, daemon=True).start()
 # 📊 API ENDPOINTS (LANJUTAN)
 # ==========================================
 @app.route('/')
-def index(): return render_template('index.html')
+def main_hub_landing():
+    # Halaman pertama yang terbuka saat IP diakses
+    return render_template('hub.html')
+
+@app.route('/factory')
+def factory_main_dashboard():
+    # Dashboard Factory
+    return render_template('index.html')
+
+@app.route('/clipper')
+def clipper_main_dashboard():
+    # Dashboard Clipper
+    return render_template('clipper.html')
 
 @app.route('/api/notifications', methods=['GET'])
 def get_notifications():
@@ -1351,6 +1771,36 @@ def get_youtube_analytics():
 @app.route('/api/get_schedule')
 def get_schedule(): return jsonify({"active": active_tasks, "history": history_tasks})
 
+@app.route('/api/recover_failed_tasks', methods=['GET', 'POST'])
+def recover_failed_tasks():
+    # 🔥 BARU: memulihkan task yang digagalkan watchdog (belum diproses)
+    # dari history kembali ke antrean aktif — jadwal tayang & judul tetap utuh.
+    global active_tasks, history_tasks
+    recovered = []
+    with db_lock:
+        still_needed = []
+        for t in history_tasks:
+            bp = t.get('blueprint')
+            if bp and "Stuck" in t.get('status', ''):
+                # 🔥 FIX: Pakaikan pelindung "Menunggu" saat dipulihkan
+                t['status'] = "Menunggu Giliran (Queue) ⏳ (Dipulihkan)"
+                t['updated_at'] = time.time()
+                active_tasks.append(t)
+                queue_put(bp)   # masuk mesin render beneran
+                recovered.append(t.get('title', '?')[:60])
+            else:
+                still_needed.append(t)
+        history_tasks = still_needed
+        active_tasks.sort(key=lambda x: x.get('blueprint', {}).get('publish_date', ''))
+        save_tasks_db()
+    for r in recovered:
+        pass
+    if recovered:
+        send_tg_message("🔄 *Task dipulihkan*\n" + "\n".join("• " + r for r in recovered[:10]) +
+                        ("\n…dst" if len(recovered) > 10 else "") + "\nTask kembali ke antrean render.")
+    return jsonify({"status": "success", "recovered": len(recovered),
+                    "titles": recovered})
+
 @app.route('/api/clear_history', methods=['POST'])
 def clear_history():
     global history_tasks
@@ -1366,10 +1816,45 @@ def get_channels():
 @app.route('/api/delete_channel', methods=['POST'])
 def delete_channel():
     yt_id = request.form.get('yt_id')
-    global database_channel
+    global database_channel, active_tasks, history_tasks
+    
+    # 1. Batalkan semua antreannya di background
+    with db_lock:
+        tasks_to_remove = [t for t in active_tasks if t.get('yt_id') == yt_id]
+        for t in tasks_to_remove:
+            task_id = t['id']
+            if task_id in active_processes:
+                proc = active_processes[task_id]
+                if proc and proc.poll() is None:
+                    kill_process_tree(proc.pid)
+            stop_flags[task_id] = True
+            t['status'] = "Dibatalkan (Channel Dihapus) 🗑️"
+            active_tasks.remove(t)
+            history_tasks.insert(0, t)
+            
+        temp_queue = []
+        while not render_queue.empty():
+            try:
+                item = render_queue.get_nowait()
+                if item.get('yt_id') != yt_id:
+                    temp_queue.append(item)
+            except Exception:
+                break
+        for item in temp_queue:
+            render_queue.put(item)
+    save_tasks_db()
+
+    # 2. Sapu bersih folder & fisik dari Gallery VPS
+    gallery_path = os.path.join(BASE_UPLOAD, yt_id)
+    if os.path.exists(gallery_path):
+        import shutil
+        shutil.rmtree(gallery_path, ignore_errors=True)
+
+    # 3. Hapus profil channel dari Database
     database_channel = [c for c in database_channel if c['yt_id'] != yt_id]
     save_channels(database_channel)
-    return jsonify({"status": "success", "message": "Channel dihapus!"})
+    
+    return jsonify({"status": "success", "message": "Channel, aset Gallery, dan antrean berhasil disapu bersih!"})
 
 # --- PRESET API ---
 @app.route('/api/save_preset', methods=['POST'])
@@ -1446,7 +1931,15 @@ def get_gallery():
                 fp = os.path.join(path, f)
                 if os.path.isfile(fp):
                     size_mb = round(os.path.getsize(fp) / (1024*1024), 2)
-                    res.append({"name": f, "size": f"{size_mb} MB"})
+                    item = {"name": f, "size": f"{size_mb} MB"}
+                    # 🔥 FIX: sertakan URL preview supaya gallery bisa tampilkan
+                    # thumbnail/background asli, bukan ikon gambar rusak.
+                    ext = f.rsplit('.', 1)[-1].lower() if '.' in f else ''
+                    if ext in ('jpg', 'jpeg', 'png', 'gif', 'webp'):
+                        item['url'] = f"/uploads/{yt_id}/{sub}/{f}"
+                    elif ext in ('mp4', 'webm', 'mov'):
+                        item['url'] = f"/uploads/{yt_id}/{sub}/{f}"
+                    res.append(item)
         return res
     return jsonify({
         "audio":      get_files_data("audios"),
@@ -1549,10 +2042,19 @@ def upload_title_bank():
         except: content = raw_bytes.decode('latin-1', errors='ignore')
 
         lines = [line.strip() for line in content.split('\n') if line.strip()]
-        if not lines:
-            return jsonify({"status": "error", "message": "File .txt kosong atau tidak ada baris valid."}), 400
-
         global database_channel
+
+        # 🔥 FIX: file .txt kosong = perintah CLEAR Title Bank (hapus semua judul),
+        # bukan error. Kalau di-reject sebagai error, bank tidak pernah dihapus
+        # dari database -> judul muncul lagi setelah refresh.
+        if not lines:
+            for c in database_channel:
+                if c['yt_id'] == yt_id:
+                    c['title_bank'] = []
+                    save_channels(database_channel)
+                    return jsonify({"status": "success", "message": "Title Bank dikosongkan!", "total": 0})
+            return jsonify({"status": "error", "message": f"Channel dengan yt_id '{yt_id}' tidak ditemukan di database."}), 404
+
         channel_found = False
         for c in database_channel:
             if c['yt_id'] == yt_id:
@@ -1586,34 +2088,62 @@ def get_playlists():
         return jsonify([{"id": p['id'], "title": p['snippet']['title']} for p in res.get('items', [])])
     except: return jsonify([])
 
+# 🛠️ FUNGSI BANTUAN: Membunuh proses FFmpeg/Worker sampai ke akar
+def kill_process_tree(pid):
+    try:
+        import psutil
+        parent = psutil.Process(pid)
+        for child in parent.children(recursive=True):
+            child.kill()
+        parent.kill()
+    except Exception:
+        pass
+
 @app.route('/api/stop_task/<int:task_id>', methods=['POST'])
 def stop_task(task_id):
     stop_flags[task_id] = True
-
-    # 🔥 FORCE STOP 1: kalau ada proses FFmpeg yang lagi aktif untuk task ini, matikan LANGSUNG.
-    # Ini yang bikin stop terasa instan walau lagi di tengah rendering, bukan nunggu
-    # sampai frame berikutnya sempat mengecek stop_flags.
     proc = active_processes.pop(task_id, None)
     if proc and proc.poll() is None:
-        try:
-            proc.kill()
-        except Exception:
-            pass
+        kill_process_tree(proc.pid)
 
-    # 🔥 FORCE STOP 2: kalau task belum sempat mulai diproses (masih antre di render_queue /
-    # baru "In Factory Queue" / kena cooldown), jangan cuma pasang flag dan nunggu worker
-    # kebetulan mengambilnya nanti — langsung batalkan sekarang juga & pindah ke History.
     NOT_YET_RUNNING_MARKERS = ("In Factory Queue", "Antrean Ditunda")
     with db_lock:
         target = next((t for t in active_tasks if t['id'] == task_id), None)
     if target and any(m in target['status'] for m in NOT_YET_RUNNING_MARKERS):
         move_to_history(task_id, "Dibatalkan (Manual) 🛑")
     else:
-        # Task sedang aktif diproses: proc sudah di-kill di atas, worker akan menangkap
-        # exception dan otomatis memindahkan ke History dalam hitungan detik.
         save_tasks_db()
 
     return jsonify({"status": "success", "message": "Dihentikan paksa!"})
+
+@app.route('/api/stop_channel/<yt_id>', methods=['POST'])
+def stop_channel(yt_id):
+    global active_tasks, history_tasks
+    with db_lock:
+        tasks_to_remove = [t for t in active_tasks if t.get('yt_id') == yt_id]
+        for t in tasks_to_remove:
+            task_id = t['id']
+            if task_id in active_processes:
+                proc = active_processes[task_id]
+                if proc and proc.poll() is None:
+                    kill_process_tree(proc.pid)
+            stop_flags[task_id] = True
+            t['status'] = "Dibatalkan (Stop Channel) 🛑"
+            active_tasks.remove(t)
+            history_tasks.insert(0, t)
+            
+        temp_queue = []
+        while not render_queue.empty():
+            try:
+                item = render_queue.get_nowait()
+                if item.get('yt_id') != yt_id:
+                    temp_queue.append(item)
+            except Exception:
+                break
+        for item in temp_queue:
+            render_queue.put(item)
+    save_tasks_db()
+    return jsonify({"status": "success", "message": f"{len(tasks_to_remove)} antrean channel dihentikan!"})
 
 @app.route('/api/check_secret')
 def check_secret():
@@ -1752,6 +2282,7 @@ def batch_create():
             "id": t_id, "yt_id": yt_id, "title": titles[i] if i < len(titles) else f"Auto Video #{i+1}",
             "publish_date": v_date_str,
             "mp3_per_video": data.get('mp3_per_video', 5), 
+            "vid_per_video": data.get('vid_per_video', 1), 
             "bg_count": data.get('bg_count', 1), 
             "target_duration_hours": vid_duration,
             "vis_mode": data.get('vis_mode'), "vis_preset": data.get('vis_preset'),
@@ -1761,15 +2292,16 @@ def batch_create():
             "description": descs[i] if i < len(descs) else data.get('description', ''), 
             
             "tags": data.get('tags', ''), "privacy": data.get('privacy', 'public'), "playlist_id": data.get('playlist_id', ''),
-            "use_floating_card": data.get('use_floating_card', False)
+            "use_floating_card": data.get('use_floating_card', False),
+            "source_mode": data.get('source_mode', 'mix')  # 🔥 BARU: simpan jalur render engine di blueprint
         }
         with db_lock:
-            # 🔥 KITA SIMPAN BLUEPRINT KE DALAM DATABASE AGAR TIDAK HILANG SAAT RESTART 🔥
             active_tasks.append({
                 "id": t_id, 
                 "title": blueprint['title'], 
                 "time": blueprint['publish_date'], 
-                "status": "In Factory Queue ⚙️", 
+                # 🔥 FIX 1: Frontend membaca "Queue" (Kuning), Watchdog membaca "Menunggu" (Aman)
+                "status": "Menunggu Giliran (Queue) ⏳", 
                 "type": "📺 VOD",
                 "blueprint": blueprint 
             })
@@ -1834,6 +2366,38 @@ def telegram_reminder_worker():
 # Jalankan worker di background
 threading.Thread(target=telegram_reminder_worker, daemon=True).start()
 
+def scheduled_task_activator():
+    # 🔥 BARU: mengaktifkan task "Dijadwalkan ... ⏳ (Tahan Restart ✓)" saat waktunya tiba.
+    # Task berjadwal jauh sengaja TIDAK dirender saat startup (biar aman dari restart).
+    # Worker ini cek tiap 2 menit: begitu publish_date masuk dalam ≤60 menit,
+    # task dikembalikan ke mesin render.
+    while True:
+        time.sleep(120)
+        now = datetime.now()
+        activated = []
+        with db_lock:
+            for t in active_tasks:
+                if "blueprint" not in t or "Dijadwalkan" not in t.get('status', ''):
+                    continue
+                try:
+                    sch = datetime.strptime(t['blueprint']['publish_date'], "%Y-%m-%d %H:%M")
+                except Exception:
+                    continue
+                diff = sch - now
+                if diff <= timedelta(hours=1):
+                    t['status'] = "In Factory Queue ⚙️ (Dilanjutkan)"
+                    try:
+                        queue_put(t["blueprint"])
+                        activated.append(t['title'][:50])
+                    except Exception:
+                        pass
+        if activated:
+            save_tasks_db()
+            msg = "⏳ *Task terjadwal diaktifkan:*\n" + "\n".join("• " + a for a in activated)
+            send_tg_message(msg)
+
+threading.Thread(target=scheduled_task_activator, daemon=True).start()
+
 # --- Endpoint Telegram Settings ---
 @app.route('/api/save_telegram', methods=['POST'])
 def save_telegram():
@@ -1865,26 +2429,64 @@ def get_telegram():
         "chat_id": bot_config.get('tg_chat_id', '')
     })
 
+@app.route('/api/hub_status')
+def get_hub_status():
+    try:
+        # Hitung task Factory yang masih aktif
+        factory_active = len([t for t in active_tasks if 'Selesai' not in t['status'] and 'Gagal' not in t['status'] and 'Dibatalkan' not in t['status']])
+
+        # Hitung task Clipper yang masih aktif
+        clipper_active = 0
+        clipper_db_path = os.path.join(BASE_DIR, 'clipper', 'clips_db.json')
+        if os.path.exists(clipper_db_path):
+            with open(clipper_db_path, 'r') as f:
+                c_jobs = json.load(f)
+                clipper_active = len([j for j in c_jobs if j.get('status') not in ['done', 'error']])
+
+        sys_stats = get_system_stats()
+
+        return jsonify({
+            "factory": factory_active,
+            "clipper": clipper_active,
+            "cpu": f"{sys_stats['cpu']}%"
+        })
+    except Exception as e:
+        return jsonify({"factory": 0, "clipper": 0, "cpu": "0%"})
+
 if __name__ == '__main__':
+    def _reschedule_task(t):
+        t['status'] = "Menunggu Giliran (Queue) ⏳ (Dilanjutkan)"
+        t['updated_at'] = time.time()
+        queue_put(t["blueprint"])
+
+    # 🔥 SISTEM PENYAPU OTOMATIS: Bersihkan hantu sebelum masuk antrean
+    valid_yt_ids = {c['yt_id'] for c in database_channel}
+    tasks_to_keep = []
+
     for t in active_tasks:
-        # 🔥 FIX: cek berdasarkan status FINAL (bukan daftar kata kunci "sedang berjalan"),
-        # supaya task tidak pernah "kelewat" walau nyangkut di status mana pun,
-        # termasuk saat sudah pernah kena tag (Dilanjutkan) dari restart sebelumnya.
         is_final = ("Selesai" in t['status'] or "Sukses" in t['status']
                     or "Gagal" in t['status'] or "Dibatalkan" in t['status'])
-        if not is_final:
-            
-            # 🔥 JIKA ADA BLUEPRINT-NYA, KEMBALIKAN KE MESIN RENDER 🔥
-            if "blueprint" in t:
-                t['status'] = "In Factory Queue ⚙️ (Dilanjutkan)"
-                queue_put(t["blueprint"])
-            else:
-                # Jaga-jaga untuk task versi lama yang belum punya blueprint
-                t['status'] = "Dibatalkan (Data Hilang) ⚠️"
-                history_tasks.insert(0, t)
-                
-    # Bersihkan task yang dibatalkan saja, biarkan yang dilanjutkan
-    active_tasks = [t for t in active_tasks if "Dibatalkan" not in t['status']]
+        
+        # Cek apakah channel induknya masih ada
+        yt_id = t.get('yt_id') or (t.get('blueprint', {}).get('yt_id'))
+        
+        if yt_id and yt_id not in valid_yt_ids and not is_final:
+            # Langsung batalkan dan buang ke history saat itu juga
+            t['status'] = "Dibatalkan (Channel Dihapus) 🛑"
+            history_tasks.insert(0, t)
+        else:
+            tasks_to_keep.append(t)
+            if not is_final:
+                if "blueprint" in t:
+                    _reschedule_task(t)
+                else:
+                    t['status'] = "Menunggu (Data Incomplete) ⚠️"
+
+    active_tasks = [t for t in tasks_to_keep if "Dibatalkan" not in t['status']]
     save_tasks_db()
+    
+    startup_sanitizer()
+    send_tg_message("🚀 *KeiBot Factory aktif kembali*\nTask dilanjutkan otomatis. "
+                    f"Antrean: {len(active_tasks)} | Riwayat: {len(history_tasks)}")
     
     app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
