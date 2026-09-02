@@ -398,10 +398,21 @@ def move_to_history(task_id, final_status):
     with db_lock:
         for t in active_tasks:
             if t['id'] == task_id:
+                start_t = t.get('started_at')
+                if start_t:
+                    import time as sys_time, datetime as sys_dt
+                    dur_sec = int(sys_time.time() - start_t)
+                    m, s = divmod(dur_sec, 60)
+                    h, m = divmod(m, 60)
+                    dur_str = f"{h}h {m}m" if h > 0 else f"{m}m {s}s"
+                    st_str = sys_dt.datetime.fromtimestamp(start_t).strftime("%H:%M")
+                    ed_str = sys_dt.datetime.now().strftime("%H:%M")
+                    t['render_info'] = f"⏱ {st_str} - {ed_str} ({dur_str})"
+                
                 t['status'] = final_status
                 history_tasks.insert(0, t)
                 active_tasks.remove(t)
-                if len(history_tasks) > 50: history_tasks.pop()
+                if len(history_tasks) > 2000: history_tasks.pop() # Limit di perbesar
                 break
     save_tasks_db()
 
@@ -753,23 +764,28 @@ class VisualEngine:
         color_mode = cfg.get('color_mode', 'gradient')
         
         tot_w = w * current_wp
-        # 🔥 BARU: Bar Width manual dari slider UI (cfg.bar_width, px). 0/kosong = hitung otomatis.
         bar_w = int(cfg.get('bar_width', 0) or 0)
         if not bar_w or bar_w <= 0:
-            # 🔥 FIX: gap dibatasi 40% area agar tidak pernah negatif; distribusi simetris terhadap tot_w
             used_gap = min(space * (n - 1), int(tot_w * 0.4))
             bar_w = max(1, int((tot_w - used_gap) / n))
         start_x = int(w * current_px) - int(tot_w / 2)
         base_y = int(h * current_py)
         
-        if self.bar_h is None or len(self.bar_h) != n: self.bar_h = np.zeros(n)
+        if getattr(self, 'bar_h', None) is None or len(self.bar_h) != n: self.bar_h = np.zeros(n)
+        
+        # 🌈 CACHE WARNA CERAH: Merah -> Kuning -> Hijau -> Biru Muda -> Biru
+        if getattr(self, 'rainbow_v', None) is None:
+            self.rainbow_v = []
+            for d in range(1000):
+                hue = int((d / 999.0) * 120) # 0=Merah, 30=Kuning, 60=Hijau, 90=Cyan, 120=Biru
+                bgr = cv2.cvtColor(np.uint8([[[hue, 255, 255]]]), cv2.COLOR_HSV2BGR)[0][0]
+                self.rainbow_v.append((int(bgr[0]), int(bgr[1]), int(bgr[2])))
         
         for i in range(n):
             target = bars[i] * cfg.get('reactivity', 0.66)
             self.bar_h[i] = (self.bar_h[i] * 0.85) + (target * 0.15)
             height = max(2, int(max(idle, self.bar_h[i] * max_h)))
             
-            # 🔥 FIX: distribusi simetris terhadap tot_w (bar terakhir berhenti di start_x+tot_w)
             x1 = start_x + int((tot_w / n) * i)
             x2 = x1 + bar_w
             y1 = (base_y - (height // 2)) if bar_style == 'center' else base_y - height
@@ -779,52 +795,20 @@ class VisualEngine:
             y1_safe, y2_safe = max(0, min(h, y1)), max(0, min(h, y2))
             
             if x2_safe > x1_safe and y2_safe > y1_safe:
-                # 🔥 BARU: Gradasi Warna Tiang dari Bawah ke Atas 🔥
+                # 🌈 GRADASI VERTIKAL SOLID BERSKALA (Tarik warna puncak ke setiap tiang)
+                real_h = max(1, (height // 2) if bar_style == 'center' else height)
+                
                 for y in range(y1_safe, y2_safe):
-                    # Hitung jarak piksel ini dari garis bawah (base_y)
                     dist = abs(base_y - y) if bar_style == 'center' else (base_y - y)
-                    color = self.get_color(dist, max_h, color_mode)
-                    # Gambar per baris piksel
-                    cv2.line(glow_canvas, (x1_safe, y), (x2_safe - 1, y), color, 1)
+                    if color_mode == 'rainbow':
+                        idx = int(max(0.0, min(1.0, dist / real_h)) * 999)
+                        color = self.rainbow_v[idx]
+                    else:
+                        color = self.get_color(dist, real_h, color_mode)
                     
-                core_w = max(1, int((x2_safe - x1_safe) * 0.5))
-                offset = ((x2_safe - x1_safe) - core_w) // 2
-                cv2.rectangle(frame, (x1_safe + offset, y1_safe), (x1_safe + offset + core_w, y2_safe), (255,255,255), -1)
-
-    # ========== HORIZONTAL BARS ==========
-    def draw_horizontal_bars(self, frame, glow_canvas, bars, cfg, current_px, current_py, current_wp):
-        import cv2, numpy as np
-        h, w = frame.shape[:2]
-        n = len(bars)
-        max_h = h * (cfg.get('max_height', 40) / 100)
-        idle, space = int(cfg.get('idle_height', 5)), int(cfg.get('spacing', 3))
-        color_mode = cfg.get('color_mode', 'gradient')
-        
-        tot_h = h * current_wp
-        # 🔥 BARU: "lebar" bar horizontal juga mengikuti cfg.bar_width
-        bar_h = int(cfg.get('bar_width', 0) or 0)
-        if not bar_h or bar_h <= 0:
-            used_gap = min(space * (n - 1), int(tot_h * 0.4))
-            bar_h = max(1, int((tot_h - used_gap) / n))
-        start_y = int(h * current_py) - int(tot_h / 2)
-        base_x = int(w * current_px)
-        if self.bar_h_h is None or len(self.bar_h_h) != n: self.bar_h_h = np.zeros(n)
-        for i in range(n):
-            target = bars[i] * cfg.get('reactivity', 0.66)
-            self.bar_h_h[i] = (self.bar_h_h[i] * 0.85) + (target * 0.15)
-            width = max(2, int(max(idle, self.bar_h_h[i] * max_h)))
-            y1, y2 = start_y + int((tot_h / n) * i), start_y + int((tot_h / n) * i) + bar_h
-            x1, x2 = base_x - width, base_x
-            
-            x1_safe, x2_safe = max(0, min(w, x1)), max(0, min(w, x2))
-            y1_safe, y2_safe = max(0, min(h, y1)), max(0, min(h, y2))
-            
-            if x2_safe > x1_safe and y2_safe > y1_safe:
-                color = self.get_color(i, n, color_mode)
-                cv2.rectangle(glow_canvas, (x1_safe, y1_safe), (x2_safe, y2_safe), color, -1)
-                core_h = max(1, int((y2_safe - y1_safe) * 0.5))
-                offset = ((y2_safe - y1_safe) - core_h) // 2
-                cv2.rectangle(frame, (x1_safe, y1_safe + offset), (x2_safe, y1_safe + offset + core_h), (255,255,255), -1)
+                    # Layer bayangan (glow) & Layer utama (tiang solid)
+                    cv2.line(glow_canvas, (x1_safe, y), (x2_safe - 1, y), color, 1)
+                    cv2.line(frame, (x1_safe, y), (x2_safe - 1, y), color, 1)
 
     
     # ========== CIRCULAR (MELINGKAR - GAYA LED) ==========
@@ -1219,7 +1203,31 @@ class VisualEngine:
             self.particles = alive
             if any_alive and part_opacity > 0:
                 frame[:] = cv2.addWeighted(frame, 1 - part_opacity, overlay, part_opacity, 0)
+        
+        # 🔥 GAMBAR FLOATING CARD DI RENDER FINAL
+        if cfg.get('use_floating_card', False):
+            current_sec = self.frame_count / 30.0
+            current_title = ""
+            for track in cfg.get('track_schedule', []):
+                if track['start'] <= current_sec < track['end']:
+                    current_title = track['title']
+                    break
             
+            if current_title:
+                text = f"NOW PLAYING: {current_title}"
+                font = cv2.FONT_HERSHEY_DUPLEX
+                font_scale = 0.65
+                thickness = 2
+                (tw, th), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+                pad_x, pad_y = 18, 12
+                x, y = 40, 60  
+                
+                overlay = frame.copy()
+                cv2.rectangle(overlay, (x, y - th - pad_y), (x + tw + pad_x*2, y + pad_y), (15, 15, 15), -1)
+                cv2.rectangle(overlay, (x, y - th - pad_y), (x + tw + pad_x*2, y + pad_y), self.col_top, 2)
+                cv2.addWeighted(overlay, 0.85, frame, 0.15, 0, frame)
+                cv2.putText(frame, text, (x + pad_x, y), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+
         return frame
 
 def hex_to_rgb(h): return tuple(int(str(h).lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
@@ -1243,6 +1251,7 @@ def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg)
             if d['id'] == task_id:
                 d['status'] = "Rendering 720p... ⚡"
                 d['updated_at'] = time.time()  # 🔥 BARU: timestamp untuk watchdog stuck
+                d['started_at'] = time.time() # 🔥 CATAT WAKTU START
     save_tasks_db()
 
     cmd = [
@@ -1258,6 +1267,7 @@ def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg)
     active_processes[task_id] = proc
     
     try:
+        last_ping = time.time()
         for f in range(total_f):
             if stop_flags.get(task_id):
                 raise Exception("Dibatalkan")
@@ -1266,6 +1276,15 @@ def render_video_core(task_id, audio_path, bg_paths, output_path, duration, cfg)
             frame = vis.process(bg.get_frame(), v, is_hit, bars, cfg)
             proc.stdin.write(frame.tobytes())
             
+            # 🔥 PING WATCHDOG: Lapor ke pos satpam setiap 60 detik agar tidak ditebas
+            now_t = time.time()
+            if now_t - last_ping > 60:
+                last_ping = now_t
+                with db_lock:
+                    for d in active_tasks:
+                        if d['id'] == task_id:
+                            d['updated_at'] = now_t
+                            
     except Exception as e:
         proc.stdin.close()
         proc.terminate()
@@ -1444,7 +1463,12 @@ def background_worker():
                         try: dur = float(probe.stdout.strip())
                         except: dur = 0.0
                         
-                        title = os.path.splitext(os.path.basename(ap))[0]
+                        # 🔥 PEMBERSIH JUDUL OTOMATIS (Audio MP3)
+                        raw_title = os.path.splitext(os.path.basename(ap))[0]
+                        title = re.sub(r'^\d+[\.\)\-\s]+', '', raw_title)
+                        title = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip(' -_')
+                        if not title: title = raw_title
+                        
                         track_schedule.append({'title': title, 'path': safe_path, 'start': current_sec, 'end': current_sec + dur, 'duration': dur})
                         current_sec += dur
 
