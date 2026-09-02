@@ -369,6 +369,18 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
 .task-name { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
 .task-meta { font-family:var(--font-m); font-size:10px; color:var(--muted); }
 
+/* 🔥 CSS BARU COLLAPSE & PAGINATION */
+.ch-group-head { cursor: pointer; user-select: none; transition: 0.2s; }
+.ch-group-head:hover { filter: brightness(1.1); }
+.chevron { display: inline-block; transition: transform 0.2s; font-size:10px; margin-right:8px; }
+.collapsed .chevron { transform: rotate(-90deg); }
+.q-group-content { overflow: hidden; }
+.collapsed + .q-group-content, .collapsed + tbody { display: none; }
+.pagination { display:flex; gap:6px; padding:12px 0; justify-content:center; align-items:center; }
+.page-btn { background:var(--surface); border:1px solid var(--border); color:var(--text2); padding:4px 10px; border-radius:4px; font-size:11px; cursor:pointer; transition:0.2s;}
+.page-btn:hover { background:var(--accent-dim); color:var(--text); }
+.page-btn.active { background:var(--accent-dim); color:var(--accent); border-color:var(--accent); font-weight:bold;}
+
 .stop-btn { background:rgba(255,77,109,.1); color:var(--accent2); border:1px solid rgba(255,77,109,.25); padding:6px 12px; border-radius:7px; font-family:var(--font-d); font-size:11px; font-weight:700; cursor:pointer; transition:.15s; }
 .stop-btn:hover { background:var(--accent2); color:#fff; }
 .cancel-btn { background:rgba(58,84,112,.12); color:var(--muted); border:1px solid var(--border); padding:6px 12px; border-radius:7px; font-family:var(--font-d); font-size:11px; font-weight:700; cursor:pointer; transition:.15s; }
@@ -2668,16 +2680,27 @@ function drawLivePreview() {
             const startX = centerX - totW / 2; const baseY = centerY;
             for (let i = 0; i < barCount; i++) {
                 const height = Math.max(2, Math.max(idleH, finalBars[i] * maxBarH));
-                // 🔥 FIX: rentangkan bar secara simetris terhadap totW (bar terakhir berhenti di startX+totW),
-                // bukan menyebar dengan gap penuh yang bisa mendorong bar keluar area saat Width Pct 100%.
                 const x = startX + (totW / barCount) * i;
                 const bw = (cfg.bar_width && cfg.bar_width > 0) ? cfg.bar_width
                     : Math.max(2, (totW / barCount) - cfg.spacing);
                 let y1 = (cfg.bar_style === 'center') ? baseY - (height / 2) : baseY - height;
                 if (x + bw <= cw && y1 >= 0) {
-                    const color = getVisualColor(i, barCount);
-                    ctx.shadowColor = color; ctx.fillStyle = color; ctx.fillRect(x, y1, bw, height);
-                    ctx.fillStyle = '#ffffff'; ctx.fillRect(x + bw*0.25, y1, bw*0.5, height);
+                    // 🔥 Gradasi dipadatkan mengikuti tinggi tiang saat ini agar Peak Color selalu muncul
+                    let gradient = ctx.createLinearGradient(0, baseY, 0, y1);
+                    if (cfg.color_mode === 'rainbow') {
+                        gradient.addColorStop(0, 'hsl(0, 100%, 50%)');       // Merah (Bawah)
+                        gradient.addColorStop(0.25, 'hsl(60, 100%, 50%)');   // Kuning
+                        gradient.addColorStop(0.5, 'hsl(120, 100%, 50%)');   // Hijau
+                        gradient.addColorStop(0.75, 'hsl(180, 100%, 50%)');  // Biru Muda (Cyan)
+                        gradient.addColorStop(1, 'hsl(240, 100%, 50%)');     // Biru (Atas)
+                    } else {
+                        gradient.addColorStop(0, cfg.color_bot);
+                        gradient.addColorStop(1, cfg.color_top);
+                    }
+                    
+                    ctx.shadowColor = cfg.color_mode === 'rainbow' ? 'hsl(180, 100%, 50%)' : cfg.color_top; 
+                    ctx.fillStyle = gradient; 
+                    ctx.fillRect(x, y1, bw, height);
                 }
             }
         } else if (cfg.bar_style === 'horizontal') {
@@ -2949,9 +2972,20 @@ window.addEventListener('resize', function() {
 });
 
 // ────────────────────────────────────────────────────────
-//  TASK MONITOR
+//  TASK MONITOR (WITH COLLAPSE & PAGINATION)
 // ────────────────────────────────────────────────────────
 let fetchTaskFailStreak = 0;
+let qCollapsed = {}; 
+let hCollapsed = {}; 
+let hPage = {}; 
+
+window.toggleQueueGroup = function(key) { qCollapsed[key] = !qCollapsed[key]; renderTasks(); };
+window.toggleHistGroup = function(key) { hCollapsed[key] = !hCollapsed[key]; renderTasks(); };
+window.setHistPage = function(key, page) { hPage[key] = page; renderTasks(); };
+
+const groupDivQ = (name, count, ico, key) => `<div class="ch-group-head ${qCollapsed[key] ? 'collapsed' : ''}" onclick="toggleQueueGroup('${key}')"><span class="chevron">▼</span><span class="ch-group-ico">${ico}</span><span class="ch-group-name">${name}</span><span class="pill p-cyan" style="margin-left:auto;font-size:9px;padding:2px 8px">${count}</span></div>`;
+const groupDivH = (name, count, ico, key) => `<div class="ch-group-head ${hCollapsed[key] ? 'collapsed' : ''}" onclick="toggleHistGroup('${key}')"><span class="chevron">▼</span><span class="ch-group-ico">${ico}</span><span class="ch-group-name">${name}</span><span class="pill p-cyan" style="margin-left:auto;font-size:9px;padding:2px 8px">${count} Total</span></div>`;
+
 function fetchServerTasks() {
   fetch('/api/get_schedule').then(r => {
     const ct = r.headers.get('content-type') || '';
@@ -2961,10 +2995,8 @@ function fetchServerTasks() {
     fetchTaskFailStreak = 0;
     serverData = data; renderTasks();
   }).catch(() => {
-    // 🔥 BARU: kalau fetch gagal (sesi login habis / koneksi putus),
-    // daftar task tidak boleh tampak "hilang" diam-diam — beri tahu user.
     fetchTaskFailStreak++;
-    if (fetchTaskFailStreak === 3) toast('Koneksi ke server gagal. Task tetap ada di server — silakan login ulang / cek koneksi.', 'error');
+    if (fetchTaskFailStreak === 3) toast('Koneksi server gagal. Task tetap berjalan.', 'error');
   });
 }
 
@@ -2972,75 +3004,85 @@ function renderTasks() {
   const list = document.getElementById('taskList'); const hist = document.getElementById('historyTbl');
   const allActive = [...browserQueue, ...serverData.active];
 
-  // ── Helpers untuk pengelompokan per channel (tampilan saja) ──
-  const chName = (yt_id) => {
-    const c = channels.find(x => x.yt_id === yt_id);
-    return c ? c.name : (yt_id ? 'Channel Tidak Dikenal' : 'Tanpa Channel');
-  };
-  const groupDiv = (name, count, ico) => `<div class="ch-group-head"><span class="ch-group-ico">${ico}</span><span class="ch-group-name">${name}</span><span class="pill p-cyan" style="margin-left:auto;font-size:9px;padding:2px 8px">${count}</span></div>`;
+  const chName = (yt_id) => { const c = channels.find(x => x.yt_id === yt_id); return c ? c.name : (yt_id ? 'Channel Tidak Dikenal' : 'Tanpa Channel'); };
   const sortKeys = (groups, unknownKey) => Object.keys(groups).sort((a, b) => {
-    if (a === unknownKey) return 1;
-    if (b === unknownKey) return -1;
+    if (a === unknownKey) return 1; if (b === unknownKey) return -1;
     return channels.findIndex(x => x.yt_id === a) - channels.findIndex(x => x.yt_id === b);
   });
+  
   document.getElementById('q-badge').textContent = allActive.length + ' aktif';
   const badge = document.getElementById('task-badge');
   if (allActive.length) { badge.style.display = 'inline'; badge.textContent = allActive.length; } else badge.style.display = 'none';
   document.getElementById('tm-ch').textContent = channels.length; document.getElementById('tm-act').textContent = allActive.length; document.getElementById('tm-done').textContent = (serverData.history || []).length;
+  
   if (!allActive.length) { list.innerHTML = `<div style="text-align:center;padding:24px;color:var(--muted);font-family:var(--font-m);font-size:11px">Tidak ada task aktif.</div>`; } 
   else {
-    // 🔥 BARU: RENDER & UPLOAD QUEUE dikelompokkan per channel.
-    // browserQueue = task upload lokal (belum punya channel); server task punya yt_id di blueprint.
-    // Urutan proses TIDAK berubah — tetap publish_date terdekat duluan (diatur server).
-    const groups = {};
-    const unknownKey = '__unknown__';
-    browserQueue.forEach(t => {
-      const key = unknownKey;
-      if (!groups[key]) groups[key] = []; groups[key].push(t);
-    });
-    serverData.active.forEach(t => {
-      const yt = (t.blueprint && t.blueprint.yt_id) || t.yt_id || '';
-      const key = yt || unknownKey;
-      if (!groups[key]) groups[key] = []; groups[key].push(t);
-    });
+    const groups = {}; const unknownKey = '__unknown__';
+    browserQueue.forEach(t => { const key = unknownKey; if (!groups[key]) groups[key] = []; groups[key].push(t); });
+    serverData.active.forEach(t => { const yt = (t.blueprint && t.blueprint.yt_id) || t.yt_id || ''; const key = yt || unknownKey; if (!groups[key]) groups[key] = []; groups[key].push(t); });
+    
     list.innerHTML = sortKeys(groups, unknownKey).map(key => {
-      const items = groups[key];
-      const isUnknown = key === unknownKey;
+      const items = groups[key]; const isUnknown = key === unknownKey;
       const name = isUnknown ? 'Pending Upload Lokal' : chName(key);
-      let html = groupDiv(name, items.length, isUnknown ? '📤' : '📺');
-      items.forEach(t => {
-        if (isUnknown) {
-          html += `<div class="task-row"><div class="task-icon">📤</div><div class="task-info"><div class="task-name">${t.judul || 'Task'}</div><div class="task-meta">${t.jadwal || ''}</div></div><span class="pill p-yellow" style="flex-shrink:0">${t.status || 'Menunggu'}</span><button class="cancel-btn" onclick="cancelBrowserTask(${JSON.stringify(t.id)})">Batalkan</button></div>`;
-        } else {
-          // 🔥 BARU: task yg sedang ANTRE/menunggu (Queue, Cooldown, Ditunda, Dijadwalkan)
-          // diberi sorot KUNING + pill kuning + ikon ⏳ agar mudah dibedakan.
-          const _st = String(t.status || '');
-          const _qw = _st.includes('Queue') || _st.includes('Menunggu reset') || _st.includes('Cooldown') || _st.includes('Ditunda') || _st.includes('Dijadwalkan');
-          html += `<div class="task-row${_qw ? ' q-waiting' : ''}"><div class="task-icon">${_qw ? '⏳' : '⚙️'}</div><div class="task-info"><div class="task-name">${t.title || 'Task'}</div><div class="task-meta">${t.time || ''}${t.thumb_status ? `<span style="color:var(--text2);font-size:10px"> · 🖼️ ${t.thumb_status}</span>` : ''}</div></div><span class="pill ${_qw ? 'p-yellow' : 'p-cyan'}" style="flex-shrink:0;max-width:200px;white-space:normal;line-height:1.3">${t.status || '—'}</span><button class="stop-btn" onclick="stopTask(${Number(t.id)})">Stop</button></div>`;
-        }
-      });
+      let html = groupDivQ(name, items.length, isUnknown ? '📤' : '📺', key);
+      
+      if (!qCollapsed[key]) {
+        let rows = items.map(t => {
+          if (isUnknown) {
+            return `<div class="task-row"><div class="task-icon">📤</div><div class="task-info"><div class="task-name">${t.judul || 'Task'}</div><div class="task-meta">${t.jadwal || ''}</div></div><span class="pill p-yellow" style="flex-shrink:0">${t.status || 'Menunggu'}</span><button class="cancel-btn" onclick="cancelBrowserTask(${JSON.stringify(t.id)})">Batalkan</button></div>`;
+          } else {
+            const _st = String(t.status || '');
+            const _qw = _st.includes('Queue') || _st.includes('Menunggu reset') || _st.includes('Cooldown') || _st.includes('Ditunda') || _st.includes('Dijadwalkan');
+            return `<div class="task-row${_qw ? ' q-waiting' : ''}"><div class="task-icon">${_qw ? '⏳' : '⚙️'}</div><div class="task-info"><div class="task-name">${t.title || 'Task'}</div><div class="task-meta">${t.time || ''}${t.thumb_status ? `<span style="color:var(--text2);font-size:10px"> · 🖼️ ${t.thumb_status}</span>` : ''}</div></div><span class="pill ${_qw ? 'p-yellow' : 'p-cyan'}" style="flex-shrink:0;max-width:200px;white-space:normal;line-height:1.3">${t.status || '—'}</span><button class="stop-btn" onclick="stopTask(${Number(t.id)})">Stop</button></div>`;
+          }
+        }).join('');
+        html += `<div class="q-group-content">${rows}</div>`;
+      }
       return html;
     }).join('');
   }
+  
   if (!(serverData.history || []).length) { hist.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:16px;color:var(--muted);font-family:var(--font-m);font-size:11px">Belum ada history.</td></tr>`; } 
   else {
-    // 🔥 BARU: HISTORY dikelompokkan per channel (tampilan saja, urut tetap sesuai riwayat tersimpan).
-    const hGroups = {};
-    const unknownHKey = '__unknownH__';
-    serverData.history.forEach(t => {
-      const yt = (t.blueprint && t.blueprint.yt_id) || t.yt_id || '';
-      const key = yt || unknownHKey;
-      if (!hGroups[key]) hGroups[key] = []; hGroups[key].push(t);
-    });
+    const hGroups = {}; const unknownHKey = '__unknownH__';
+    serverData.history.forEach(t => { const yt = (t.blueprint && t.blueprint.yt_id) || t.yt_id || ''; const key = yt || unknownHKey; if (!hGroups[key]) hGroups[key] = []; hGroups[key].push(t); });
+    
     hist.innerHTML = sortKeys(hGroups, unknownHKey).map(key => {
-      const items = hGroups[key];
-      const isUnknown = key === unknownHKey;
+      const items = hGroups[key]; const isUnknown = key === unknownHKey;
       const name = isUnknown ? 'Channel Tidak Dikenal' : chName(key);
-      const rows = items.map(t => {
-        const c = t.status.includes('❌') ? 'var(--accent2)' : 'var(--muted)';
-        return `<tr><td><span style="font-family:var(--font-m);font-size:10px;color:var(--muted)">#${t.id}</span></td><td style="font-weight:700">${t.title || '—'}</td><td style="color:${c};font-weight:600">${t.status}${t.thumb_status ? `<br><span style="font-size:10px;color:var(--text2);font-weight:400">🖼️ ${t.thumb_status}</span>` : ''}</td></tr>`;
-      }).join('');
-      return `<tr><td colspan="3" style="padding:8px 4px 2px;border:none;background:transparent">${groupDiv(name, items.length, '🗂')}</td></tr>` + rows;
+      const totalCount = items.length;
+      
+      let html = `<tr><td colspan="3" style="padding:8px 4px 2px;border:none;background:transparent">${groupDivH(name, totalCount, '🗂', key)}</td></tr>`;
+      
+      if (!hCollapsed[key]) {
+          const limit = 100;
+          const totalPages = Math.ceil(totalCount / limit);
+          let currPage = hPage[key] || 1;
+          if (currPage > totalPages) currPage = totalPages;
+          if (currPage < 1) currPage = 1;
+          
+          const startIdx = (currPage - 1) * limit;
+          const pageItems = items.slice(startIdx, startIdx + limit);
+          
+          let rows = pageItems.map(t => {
+            const c = String(t.status).includes('❌') ? 'var(--accent2)' : 'var(--muted)';
+            const renderInfo = t.render_info ? `<br><span style="font-size:10px;color:var(--green);font-family:var(--font-m)">${t.render_info}</span>` : '';
+            return `<tr><td><span style="font-family:var(--font-m);font-size:10px;color:var(--muted)">#${t.id}</span></td><td style="font-weight:700">${t.title || '—'}${renderInfo}</td><td style="color:${c};font-weight:600">${t.status}${t.thumb_status ? `<br><span style="font-size:10px;color:var(--text2);font-weight:400">🖼️ ${t.thumb_status}</span>` : ''}</td></tr>`;
+          }).join('');
+          
+          html += `<tbody>${rows}</tbody>`;
+          
+          if (totalPages > 1) {
+              let pageHtml = `<div class="pagination">`;
+              let pStart = Math.max(1, currPage - 2); let pEnd = Math.min(totalPages, currPage + 2);
+              if (pStart > 1) pageHtml += `<button class="page-btn" onclick="setHistPage('${key}', 1)">1</button>${pStart > 2 ? '<span style="color:var(--muted)">...</span>' : ''}`;
+              for (let i = pStart; i <= pEnd; i++) pageHtml += `<button class="page-btn ${i === currPage ? 'active' : ''}" onclick="setHistPage('${key}', ${i})">${i}</button>`;
+              if (pEnd < totalPages) pageHtml += `${pEnd < totalPages - 1 ? '<span style="color:var(--muted)">...</span>' : ''}<button class="page-btn" onclick="setHistPage('${key}', ${totalPages})">${totalPages}</button>`;
+              pageHtml += `</div>`;
+              html += `<tr><td colspan="3" style="padding:4px;border:none;background:transparent">${pageHtml}</td></tr>`;
+          }
+      }
+      return html;
     }).join('');
   }
   const bnBadge = document.getElementById('bn-badge');
