@@ -547,22 +547,21 @@ def safe_num(val, default):
 class AudioBrain:
     def __init__(self):
         import numpy as np
-        self.y = None; self.sr = None; self.onset_env = None; self.has_audio = False
+        self.y = None; self.sr = None; self.has_audio = False
         self.duration = 0.0
 
     def load(self, path, max_duration=None):
         try:
             import librosa
+            # Hanya memuat audio standar, fitur onset_strength (biang kerok RAM jebol) dimatikan total
             self.y, self.sr = librosa.load(path, sr=22050, mono=True, duration=max_duration)
-            self.onset_env = librosa.onset.onset_strength(y=self.y, sr=self.sr)
             self.duration = len(self.y) / self.sr
             self.has_audio = True
-        except Exception as e:
-            print(f"Audio Error: {e}")
+        except Exception as e: print(f"Audio Error: {e}")
 
     def get_data(self, t, n_bars=64): 
         import numpy as np
-        n_bars = int(n_bars) # Pastikan selalu angka bulat
+        n_bars = int(n_bars) 
         if not self.has_audio: return 0.0, False, np.zeros(n_bars)
         
         idx = int(t * self.sr)
@@ -571,15 +570,10 @@ class AudioBrain:
         try: 
             chunk = self.y[idx:idx+1024]
             vol = np.sqrt(np.mean(chunk**2)) * 10 if len(chunk) > 0 else 0
-        except: 
-            vol = 0
+        except: vol = 0
         
-        hit = False
-        try:
-            onset_idx = int(idx/512)
-            if onset_idx < len(self.onset_env) and self.onset_env[onset_idx] > 2.0: 
-                hit = True
-        except: pass
+        # 🔥 Deteksi Hit/Beat Ringan on-the-fly (Sangat hemat RAM)
+        hit = True if vol > 1.5 else False
 
         final_bars = np.zeros(n_bars)
         try:
@@ -592,7 +586,7 @@ class AudioBrain:
                 ls = len(usable)
                 
                 if ls > 0:
-                    half_n = max(1, n_bars // 2) # Pengaman dari pembagian nol
+                    half_n = max(1, n_bars // 2) 
                     raw_bars = np.zeros(half_n)
                     for i in range(half_n):
                         s = int((i / half_n) * ls)
@@ -604,14 +598,9 @@ class AudioBrain:
                     smooth_half = np.convolve(raw_bars, np.ones(3)/3, mode='same')
                     final_bars = np.concatenate((smooth_half[::-1], smooth_half))
                     
-                    # Pengaman dimensi array anti-crash
-                    if len(final_bars) < n_bars: 
-                        final_bars = np.pad(final_bars, (0, n_bars - len(final_bars)), 'constant')
-                    elif len(final_bars) > n_bars: 
-                        final_bars = final_bars[:n_bars]
-        except Exception: 
-            pass # Abaikan error matematika agar server tidak mati
-                
+                    if len(final_bars) < n_bars: final_bars = np.pad(final_bars, (0, n_bars - len(final_bars)), 'constant')
+                    elif len(final_bars) > n_bars: final_bars = final_bars[:n_bars]
+        except Exception: pass 
         return vol, hit, final_bars
 
 # Durasi crossfade visual tetap; tidak ditampilkan sebagai opsi UI.
