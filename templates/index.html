@@ -1072,9 +1072,17 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
       </div>
 
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <div style="font-size:14px;font-weight:700">◉ Connected Channels</div>
-        <button class="btn btn-p" onclick="generateTVLink()">＋ Tautkan Channel Baru</button>
-      </div>
+  <div style="font-size:14px;font-weight:700">◉ Connected Channels</div>
+  
+  <!-- Bungkus grup tombol agar berjejer di kanan -->
+  <div style="display:flex; gap:8px; align-items:center;">
+    <button class="btn btn-p" style="background-color: #2563eb; border-color: #2563eb;" onclick="exportChannels()">📤 Export</button>
+    <button class="btn btn-p" style="background-color: #d97706; border-color: #d97706;" onclick="document.getElementById('importFile').click()">📥 Import</button>
+    <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importChannels(event)">
+    
+    <button class="btn btn-p" onclick="generateTVLink()">＋ Tautkan Channel Baru</button>
+  </div>
+</div>
       
       <div id="tv-box" style="display:none;background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.2);border-radius:var(--r);padding:16px;margin-bottom:16px">
         <div style="font-family:var(--font-m);font-size:11px;color:var(--accent);margin-bottom:6px" id="tv-msg">Copy link ini di profil Chrome channel YouTube target:</div>
@@ -3359,6 +3367,42 @@ function onSourceModeChange() {
     // 🔥 BARU: muat ulang list preview sesuai mode yang aktif (audios vs base_videos)
     stopAudioPreview();
     if (typeof loadPreviewAudioList === 'function') loadPreviewAudioList();
+}
+
+function exportChannels() {
+    window.location.href = '/api/export_channels';
+}
+
+function importChannels(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (!confirm("⚠️ PERINGATAN: Import data akan menimpa SEMUA channel yang ada saat ini. Lanjutkan?")) {
+        event.target.value = ''; // Reset input
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    fetch('/api/import_channels', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert("✅ Sukses: " + data.message);
+            location.reload(); // Refresh halaman agar data baru muncul
+        } else {
+            alert("❌ Gagal: " + data.message);
+        }
+    })
+    .catch(error => {
+        alert("Terjadi kesalahan sistem saat import.");
+    });
+    
+    event.target.value = ''; // Reset input setelah proses selesai
 }
 </script>
 
