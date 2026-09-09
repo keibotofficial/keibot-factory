@@ -165,7 +165,9 @@ def load_tasks_db():
 def save_tasks_db():
     with db_lock:
         data = {"active": active_tasks, "history": history_tasks}
-        with open(TASKS_FILE, 'w') as f: json.dump(data, f, indent=4)
+        temp_file = TASKS_FILE + '.tmp'
+        with open(temp_file, 'w') as f: json.dump(data, f, indent=4)
+        os.replace(temp_file, TASKS_FILE)
 
 # ==========================================
 # 🛡️ SISTEM KETAHANAN (ANTI-STUCK & ANTI-LOST)
@@ -207,6 +209,8 @@ def startup_sanitizer():
         for f in glob.glob(os.path.join(BASE_UPLOAD, "temp_a_*.mp3")) + \
                  glob.glob(os.path.join(BASE_UPLOAD, "temp_c_*.txt")) + \
                  glob.glob(os.path.join(BASE_UPLOAD, "temp_v_*.mp4")) + \
+                 glob.glob(os.path.join(BASE_UPLOAD, "temp_mv_*.mp4")) + \
+                 glob.glob(os.path.join(BASE_UPLOAD, "temp_sv_*.txt")) + \
                  glob.glob(os.path.join(BASE_UPLOAD, "loop_*.txt")):
             os.remove(f)
     except Exception:
@@ -306,7 +310,9 @@ def load_channels():
 
 def save_channels(channels):
     with db_lock:
-        with open(DB_FILE, 'w') as f: json.dump(channels, f, indent=4)
+        temp_file = DB_FILE + '.tmp'
+        with open(temp_file, 'w') as f: json.dump(channels, f, indent=4)
+        os.replace(temp_file, DB_FILE)
 
 task_data = load_tasks_db()
 active_tasks = task_data.get("active", [])
@@ -1344,6 +1350,8 @@ def background_worker():
             os.path.join(BASE_UPLOAD, f"temp_a_{task_id}.mp3"),
             os.path.join(BASE_UPLOAD, f"temp_c_{task_id}.txt"),
             os.path.join(BASE_UPLOAD, f"temp_v_{task_id}.mp4"),
+            os.path.join(BASE_UPLOAD, f"temp_mv_{task_id}.mp4"),
+            os.path.join(BASE_UPLOAD, f"temp_sv_{task_id}.txt"),
             os.path.join(BASE_UPLOAD, f"loop_{task_id}.txt"),
             os.path.join(BASE_DIR, f"static/final_{task_id}.mp4"),
         ]
@@ -1522,11 +1530,24 @@ def background_worker():
                         f.write(f"file '{safe_path_vid}'\n")
 
                 if stop_flags.get(task_id): raise Exception("Dibatalkan")
-                # 🔥 REM DILEPAS: Looping Video Final
-                subprocess.run([get_ffmpeg_path(), '-y', '-f', 'concat', '-safe', '0', '-i', loop_txt, '-c', 'copy', '-t', str(target_sec), final_video], check=True)
+                
+                try:
+                    # Kembali ke concat tapi dengan pengaman timestamp (+genpts)
+                    subprocess.run([get_ffmpeg_path(), '-y', '-fflags', '+genpts', '-f', 'concat', '-safe', '0', '-i', loop_txt, '-c', 'copy', '-t', str(target_sec), final_video], check=True, capture_output=True, text=True)
+                except subprocess.CalledProcessError as e:
+                    # Ambil 6 baris terakhir agar error aslinya tidak tertutup statistik ukuran
+                    err_lines = e.stderr.strip().split('\n')
+                    real_err = " | ".join(err_lines[-6:]) 
+                    raise Exception(f"FFmpeg Concat Error: {real_err}")
             else:
                 if stop_flags.get(task_id): raise Exception("Dibatalkan")
-                subprocess.run([get_ffmpeg_path(), '-y', '-i', base_video, '-c', 'copy', '-t', str(target_sec), final_video], check=True)
+                
+                try:
+                    subprocess.run([get_ffmpeg_path(), '-y', '-i', base_video, '-c', 'copy', '-t', str(target_sec), final_video], check=True, capture_output=True, text=True)
+                except subprocess.CalledProcessError as e:
+                    err_lines = e.stderr.strip().split('\n')
+                    real_err = " | ".join(err_lines[-6:])
+                    raise Exception(f"FFmpeg Final Error: {real_err}")
 
             if channel_data:
                 creds_list = channel_data.get('creds_list', [channel_data.get('creds_json')])
@@ -1825,6 +1846,40 @@ def clear_history():
 def get_channels():
     safe_c = [{"id": c["id"], "name": c["name"], "yt_id": c["yt_id"], "thumbnail": c["thumbnail"], "status": c["status"], "title_bank": c.get("title_bank", [])} for c in database_channel]
     return jsonify(safe_c)
+
+from flask import send_file # Pastikan send_file di-import di baris paling atas jika belum ada
+
+@app.route('/api/export_channels', methods=['GET'])
+def export_channels():
+    """Mengunduh database channel saat ini sebagai file JSON."""
+    if not os.path.exists(DB_FILE):
+        return jsonify({"status": "error", "message": "Database belum terbentuk."}), 404
+    
+    timestamp = int(time.time())
+    return send_file(DB_FILE, as_attachment=True, download_name=f"keibot_channels_backup_{timestamp}.json")
+
+@app.route('/api/import_channels', methods=['POST'])
+def import_channels():
+    """Mengunggah dan menimpa database channel dengan file JSON cadangan."""
+    global database_channel
+    file = request.files.get('file')
+    
+    if not file or not file.filename.endswith('.json'):
+        return jsonify({"status": "error", "message": "File tidak valid! Harus berformat .json"}), 400
+    
+    try:
+        new_data = json.load(file)
+        if not isinstance(new_data, list):
+            return jsonify({"status": "error", "message": "Format file rusak. Data channel harus berupa List/Array."}), 400
+            
+        with db_lock:
+            database_channel = new_data
+            # Langsung simpan secara permanen menimpa channels_db.json lama
+            save_channels(database_channel)
+            
+        return jsonify({"status": "success", "message": f"{len(database_channel)} channel berhasil diimpor!"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Gagal membaca file: {str(e)}"}), 500
 
 @app.route('/api/delete_channel', methods=['POST'])
 def delete_channel():
@@ -2466,40 +2521,43 @@ def get_hub_status():
     except Exception as e:
         return jsonify({"factory": 0, "clipper": 0, "cpu": "0%"})
 
+# ==========================================
+# 🚀 STARTUP & RECOVERY SCRIPT
+# ==========================================
+def _reschedule_task(t):
+    t['status'] = "Menunggu Giliran (Queue) ⏳ (Dilanjutkan)"
+    t['updated_at'] = time.time()
+    queue_put(t["blueprint"])
+
+# 🔥 SISTEM PENYAPU OTOMATIS: Bersihkan hantu sebelum masuk antrean
+valid_yt_ids = {c['yt_id'] for c in database_channel}
+tasks_to_keep = []
+
+for t in active_tasks:
+    is_final = ("Selesai" in t['status'] or "Sukses" in t['status']
+                or "Gagal" in t['status'] or "Dibatalkan" in t['status'])
+    
+    # Cek apakah channel induknya masih ada
+    yt_id = t.get('yt_id') or (t.get('blueprint', {}).get('yt_id'))
+    
+    if yt_id and yt_id not in valid_yt_ids and not is_final:
+        # Langsung batalkan dan buang ke history saat itu juga
+        t['status'] = "Dibatalkan (Channel Dihapus) 🛑"
+        history_tasks.insert(0, t)
+    else:
+        tasks_to_keep.append(t)
+        if not is_final:
+            if "blueprint" in t:
+                _reschedule_task(t)
+            else:
+                t['status'] = "Menunggu (Data Incomplete) ⚠️"
+
+active_tasks = [t for t in tasks_to_keep if "Dibatalkan" not in t['status']]
+save_tasks_db()
+    
+startup_sanitizer()
+send_tg_message("🚀 *KeiBot Factory aktif kembali*\nTask dilanjutkan otomatis. "
+                f"Antrean: {len(active_tasks)} | Riwayat: {len(history_tasks)}")
+
 if __name__ == '__main__':
-    def _reschedule_task(t):
-        t['status'] = "Menunggu Giliran (Queue) ⏳ (Dilanjutkan)"
-        t['updated_at'] = time.time()
-        queue_put(t["blueprint"])
-
-    # 🔥 SISTEM PENYAPU OTOMATIS: Bersihkan hantu sebelum masuk antrean
-    valid_yt_ids = {c['yt_id'] for c in database_channel}
-    tasks_to_keep = []
-
-    for t in active_tasks:
-        is_final = ("Selesai" in t['status'] or "Sukses" in t['status']
-                    or "Gagal" in t['status'] or "Dibatalkan" in t['status'])
-        
-        # Cek apakah channel induknya masih ada
-        yt_id = t.get('yt_id') or (t.get('blueprint', {}).get('yt_id'))
-        
-        if yt_id and yt_id not in valid_yt_ids and not is_final:
-            # Langsung batalkan dan buang ke history saat itu juga
-            t['status'] = "Dibatalkan (Channel Dihapus) 🛑"
-            history_tasks.insert(0, t)
-        else:
-            tasks_to_keep.append(t)
-            if not is_final:
-                if "blueprint" in t:
-                    _reschedule_task(t)
-                else:
-                    t['status'] = "Menunggu (Data Incomplete) ⚠️"
-
-    active_tasks = [t for t in tasks_to_keep if "Dibatalkan" not in t['status']]
-    save_tasks_db()
-    
-    startup_sanitizer()
-    send_tg_message("🚀 *KeiBot Factory aktif kembali*\nTask dilanjutkan otomatis. "
-                    f"Antrean: {len(active_tasks)} | Riwayat: {len(history_tasks)}")
-    
     app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False, threaded=True)
