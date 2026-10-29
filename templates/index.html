@@ -474,15 +474,9 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
     </div>
   </div>
   <nav class="nav">
-    <div class="nav-section">OVERVIEW</div>
-    <button class="nav-item active" onclick="go('dashboard',this)" id="nb-dashboard"><span class="nav-icon">⬡</span> Dashboard</button>
-    <button class="nav-item" onclick="go('tasks',this)" id="nb-tasks"><span class="nav-icon">◈</span> Task Monitor<span class="nav-badge" id="task-badge" style="display:none">0</span></button>
-    <div class="nav-section">STUDIO</div>
-    <button class="nav-item" onclick="go('gallery',this)" id="nb-gallery"><span class="nav-icon">▦</span> Asset Gallery</button>
-    <button class="nav-item" onclick="go('titles',this)" id="nb-titles"><span class="nav-icon">✦</span> Title Generator</button>
-    <button class="nav-item" onclick="go('batch',this)" id="nb-batch"><span class="nav-icon">◉</span> Batch Creator</button>
-    <div class="nav-section">SYSTEM</div>
-    <button class="nav-item" onclick="go('settings',this)" id="nb-settings"><span class="nav-icon">◎</span> Settings</button>
+    <div class="nav-section">STUDIO FACTORY</div>
+    <button class="nav-item active" onclick="go('batch',this)" id="nb-batch"><span class="nav-icon">◉</span> Batch Creator</button>
+    <button class="nav-item" onclick="go('tasks',this)" id="nb-tasks"><span class="nav-icon">◈</span> Antrean Factory<span class="nav-badge" id="task-badge" style="display:none">0</span></button>
   </nav>
   <div class="sidebar-footer">
     <div class="ch-mini">
@@ -535,7 +529,7 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
 
   <div class="content">
 
-    <div id="panel-dashboard" class="panel active">
+    <div id="panel-dashboard" class="panel" style="display:none!important">
       <div class="sh" style="margin-bottom:18px">
         <div><div class="sh-title">Analytics Dashboard</div><div class="sh-sub">Performa seluruh channel YouTube yang terhubung</div></div>
         <select id="analytics_filter" onchange="renderAnalytics()" style="width:200px"><option value="ALL">⬡ ALL CHANNELS</option></select>
@@ -671,7 +665,7 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
       </div>
     </div>
 
-    <div id="panel-batch" class="panel">
+    <div id="panel-batch" class="panel active">
       <div class="sh" style="margin-bottom:20px">
         <div><div class="sh-title">Batch Creator</div><div class="sh-sub">Buat banyak video sekaligus dengan satu kali setting</div></div>
       </div>
@@ -704,13 +698,17 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
             </div>
 
             <div id="classic-settings-wrap">
-                <div class="g2" style="margin-bottom:12px;">
+                <div class="g3" style="margin-bottom:12px;">
                   <div class="fg" style="margin-bottom:0">
-                    <label class="fl" style="color:var(--accent);">Jml MP3 Acak</label>
-                    <input type="number" id="bc-mp3-count" value="5" min="1" max="100">
+                    <label class="fl" style="color:var(--accent);">🎵 Jml Non-CID</label>
+                    <input type="number" id="bc-mp3-non-cid" value="5" min="0" max="50">
                   </div>
                   <div class="fg" style="margin-bottom:0">
-                      <label class="fl" style="color:var(--green);">Jml BG Acak</label>
+                    <label class="fl" style="color:var(--accent2);">⚠️ Jml CID</label>
+                    <input type="number" id="bc-mp3-cid" value="2" min="0" max="50">
+                  </div>
+                  <div class="fg" style="margin-bottom:0">
+                      <label class="fl" style="color:var(--green);">🖼️ Jml BG Acak</label>
                       <input type="number" id="bc-bg-count" value="1" min="1" max="50">
                   </div>
                 </div>
@@ -730,7 +728,8 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
 
             <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
               <div style="font-family:var(--font-m);font-size:10px;color:var(--muted);margin-bottom:6px;letter-spacing:.1em">STATUS ASET GALLERY</div>
-              <div id="bc-audio-status" style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px;">Audio: Pilih channel dulu</div>
+              <div id="bc-audio-non-status" style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px;">Audio (Non-CID): Pilih channel dulu</div>
+<div id="bc-audio-cid-status" style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px;">Audio (CID): Pilih channel dulu</div>
               <div id="bc-bg-status" style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px;">BG Biasa: Pilih channel dulu</div>
               <div id="bc-base-status" style="font-size:11px;font-weight:700;color:var(--text2);">Video+Audio: Pilih channel dulu</div>
               <div id="bc-thumb-status" style="font-size:11px;font-weight:700;color:var(--text2);">Thumbnails: Pilih channel dulu</div>
@@ -858,15 +857,21 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
               </select>
             </div>
             <div class="fg" style="justify-content:flex-end;">
-              <label style="display:flex;align-items:center;gap:8px;background:var(--card2);border:1px solid var(--border);padding:10px;border-radius:8px;cursor:pointer;color:var(--text);">
-                <input type="checkbox" id="bc-use-floating-card" checked style="width:16px;height:16px;accent-color:var(--accent);">
-                <span style="font-size:11px;font-weight:700;">Tampilkan Nama Lagu (Floating Card)</span>
-              </label>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--card2);border:1px solid var(--border);padding:8px 12px;border-radius:8px;color:var(--text);">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                  <input type="checkbox" id="bc-use-floating-card" checked style="width:16px;height:16px;accent-color:var(--accent);">
+                  <span style="font-size:11px;font-weight:700;">Floating Card Judul</span>
+                </label>
+                <select id="bc-floating-card-mode" style="width:auto;padding:4px 8px;font-size:10px;background:var(--surface);border:1px solid var(--border);color:var(--accent);border-radius:6px;font-weight:bold;">
+                  <option value="intro_5s">⏱️ Muncul di Awal (5 Detik)</option>
+                  <option value="full">♾️ Tampil Full Lagu</option>
+                </select>
+              </div>
             </div>
-          </div>
+          </div> <!-- 🔥 PENUTUP DIV G2 YANG TADI KURANG SATU -->
 
           <div id="vis-manual-wrap">
-            
+            <!-- AUDIO PREVIEW -->
             <div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:12px; background:rgba(0,212,255,0.05); padding:12px; border-radius:8px; border:1px solid rgba(0,212,255,0.2); align-items:center;">
                 <div style="flex:1; min-width:200px;">
                     <div class="sg-lbl" style="color:var(--accent); font-weight:bold; margin-bottom:4px;">🎵 Live Audio Preview (Test Sinkronisasi)</div>
@@ -881,134 +886,43 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
                 </div>
             </div>
 
-            <div class="preview-container" id="preview-container">
-                <video id="preview_bg_vid" class="preview-bg-vid" playsinline></video>
-                <img id="preview_bg_img" class="preview-bg-img" alt="Preview Background">
-                <div class="preview-overlay"></div>
-                <canvas id="preset_canvas"></canvas>
+            <!-- LAYAR PREVIEW -->
+            <div class="preview-container" id="preview-container" style="position:relative; width:100%; max-width:800px; margin:0 auto 16px auto; aspect-ratio:16/9; height:auto; border-radius:8px; overflow:hidden; border:1px solid var(--border); background:var(--bg); box-shadow:inset 0 0 40px rgba(0,0,0,0.7);">
+                <canvas id="bg_canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:0;"></canvas>
+                <video id="preview_bg_vid" class="preview-bg-vid" playsinline loop muted crossorigin="anonymous" style="display:none;"></video>
+                <img id="preview_bg_img" class="preview-bg-img" style="display:none;">
+                <div class="preview-overlay" style="position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.3); z-index:1;"></div>
+                <canvas id="preset_canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:2;"></canvas>
             </div>
 
-            <div class="g4" style="margin-bottom:12px">
-              <div class="sg">
-                <div class="sg-lbl">Jumlah Speaker</div>
-                <select id="bc-vis-instance" onchange="toggleInstanceInputs()" style="padding:4px; font-size:11px; background:var(--surface); color:var(--text); border:1px solid var(--border); width:100%; border-radius:4px;">
-                    <option value="single">Single (Tengah)</option>
-                    <option value="double">Double (Kiri & Kanan)</option>
-                </select>
-              </div>
-              <div class="sg">
-                <div class="sg-lbl">Bar Style</div>
-                <select id="bc-bar-style" style="width:100%;font-size:11px;padding:4px;border-radius:4px;background:var(--surface);color:var(--text);border:1px solid var(--border);">
-                    <option value="bottom">Naik ke Atas</option>
-                    <option value="center">Atas Bawah (Center)</option>
-                    <option value="led_eq">LED Equalizer (Balok Putus-Putus) 🎛️</option> 
-                    <option value="circle">Melingkar (Radial) 🔄</option>
-                    <option value="spectrum_edge">Spectrum Bar Pinggir Layar (Atas/Bawah/Kiri/Kanan) 🖼️</option>
-                </select>
-              </div>
-              <div class="sg">
-                <div class="sg-lbl">Color Mode</div>
-                <select id="bc-color-mode" onchange="toggleColorInputs()" style="padding:4px; font-size:11px; background:var(--surface); color:var(--text); border:1px solid var(--border); width:100%; border-radius:4px;">
-                    <option value="gradient">Custom Gradient</option>
-                    <option value="rainbow">RGB Rainbow Spectrum 🌈</option>
-                </select>
-              </div>
-              <div class="sg" id="wrap-glow-opt">
-                <div class="sg-lbl" style="display:flex; align-items:center; gap:4px;"><input type="checkbox" id="bc-enable-glow" checked style="accent-color:var(--accent);"> Neon Glow</div>
-                <input type="range" id="bc-glow-intensity" min="5" max="45" step="2" value="15">
-              </div>
-            </div>
-
-            <div class="g4" id="manual-color-pickers" style="margin-bottom:12px;">
-              <div class="sg"><div class="sg-lbl">Base Color</div><input type="color" id="bc-col-bot" value="#10b981"></div>
-              <div class="sg"><div class="sg-lbl">Peak Color</div><input type="color" id="bc-col-top" value="#00e5ff"></div>
-              <div class="sg"><div class="sg-lbl">Particle Color</div><input type="color" id="bc-col-part" value="#ffffff"></div>
-              <div class="sg" id="wrap-bg-zoom">
-                <div class="sg-lbl">Pulse React (Jedag-Jedug)</div>
-                <div style="display:flex; gap:12px; margin-top:4px; margin-bottom:8px; align-items:center; color:var(--text); font-size:11px; font-weight:bold;">
-                  <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
-                      <input type="checkbox" id="bc-enable-logo-pulse" checked style="width:16px; height:16px; accent-color:var(--accent);"> Logo
-                  </label>
-                  <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
-                      <input type="checkbox" id="bc-bg-pulse" checked style="width:16px; height:16px; accent-color:var(--accent);"> BG Zoom
-                  </label>
+            <!-- LAYER MANAGER (MODULAR) -->
+            <div style="margin-bottom: 16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <div style="font-size:12px; font-weight:bold; color:var(--text);">Tumpukan Efek (Layers)</div>
+                    <div style="display:flex; gap:8px;">
+                        <select id="new-layer-type" style="padding:6px; font-size:11px; background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:4px;">
+                            <option value="Visualizer (Bar Bawah)">Bar Bawah 📊</option>
+                            <option value="Visualizer (Radial Bar Biasa)">Radial Bar 🔄</option>
+                            <option value="Visualizer (Waveform Garis)">Waveform 〰️</option>
+                            <option value="Zoom Jedag-Jedug">Zoom Jedag-Jedug (BG) 💥</option>
+                            <option value="Glitch Beat">Glitch Beat (BG) ⚡</option>
+                            <option value="Color Boost (CapCut Vibe)">Color Boost (BG) 🎨</option>
+                            <option value="Visualizer (Particle Burst)">Partikel Rising Embers ✨</option>
+                        </select>
+                        <button type="button" class="btn btn-p btn-sm" onclick="addEffectLayer()">+ Tambah</button>
+                    </div>
                 </div>
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <input type="range" id="bc-bg-zoom" min="0" max="50" step="1" value="5" style="flex:1" oninput="uv('vv-bgz',this.value,'%')">
-                    <span class="vb" id="vv-bgz" style="font-size:10px; width:24px; text-align:right;">5%</span>
+                <div id="layers-container" style="display:flex; flex-direction:column; gap:10px;">
+                    <!-- Kotak-kotak efek akan di-generate JS ke sini -->
                 </div>
-              </div>
-            </div>
-
-            <div class="g4" style="margin-bottom:12px;">
-              <div class="sg"><div class="sg-lbl">Width Pct <span class="vb" id="vv-wp">60%</span></div><input type="range" id="bc-width" min="10" max="100" value="60" oninput="uv('vv-wp',this.value,'%')"></div>
-              <div class="sg"><div class="sg-lbl">Max Height <span class="vb" id="vv-mh">40%</span></div><input type="range" id="bc-maxh" min="10" max="100" value="40" oninput="uv('vv-mh',this.value,'%')"></div>
-              <div class="sg"><div class="sg-lbl">Idle Height <span class="vb" id="vv-ih">5px</span></div><input type="range" id="bc-idle" min="0" max="50" value="5" oninput="uv('vv-ih',this.value,'px')"></div>
-              <div class="sg"><div class="sg-lbl">Rotation Speed <span class="vb" id="vv-rs">2</span></div><input type="range" id="bc-rotation-speed" min="0" max="10" step="0.5" value="2" oninput="uv('vv-rs',this.value,'')"></div>
-            </div>
-
-            <div class="g2" style="margin-bottom:12px;">
-              <div class="sg" style="border-color: rgba(0,212,255,0.2);">
-                <div class="sg-lbl" style="color:var(--accent);">📍 POSISI SPEAKER 1 (UTAMA)</div>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:4px;">
-                  <div><span class="vb" id="vv-px">50% X</span><input type="range" id="bc-pos-x" min="0" max="100" value="50" oninput="uv('vv-px',this.value,'% X')"></div>
-                  <div><span class="vb" id="vv-py">85% Y</span><input type="range" id="bc-pos-y" min="0" max="100" value="85" oninput="uv('vv-py',this.value,'% Y')"></div>
-                </div>
-              </div>
-              <div class="sg" id="vis2-pos-wrap" style="display:none; border-color: rgba(255,77,109,0.2);">
-                <div class="sg-lbl" style="color:var(--accent2);">📍 POSISI SPEAKER 2 (TAMBAHAN)</div>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:4px;">
-                  <div><span class="vb" id="vv-px2">75% X</span><input type="range" id="bc-pos-x2" min="0" max="100" value="75" oninput="uv('vv-px2',this.value,'% X')"></div>
-                  <div><span class="vb" id="vv-py2">85% Y</span><input type="range" id="bc-pos-y2" min="0" max="100" value="85" oninput="uv('vv-py2',this.value,'% Y')"></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="g4">
-              <div class="sg"><div class="sg-lbl">Bar Count <span class="vb" id="vv-bc">64</span></div><input type="range" id="bc-bars" min="10" max="200" value="64" oninput="uv('vv-bc',this.value,'')"></div>
-              <div class="sg"><div class="sg-lbl">Bar Width <span class="vb" id="vv-bw">12px</span></div><input type="range" id="bc-bar-width" min="2" max="60" value="12" oninput="uv('vv-bw',this.value,'px')"></div>
-              <div class="sg"><div class="sg-lbl">Reactivity <span class="vb" id="vv-r">0.66x</span></div><input type="range" id="bc-react" min="0.1" max="4.0" step="0.01" value="0.66" oninput="uv('vv-r',this.value,'x')"></div>
-              <div class="sg"><div class="sg-lbl">Bar Gap <span class="vb" id="vv-sp">3px</span></div><input type="range" id="bc-gap" min="0" max="20" value="3" oninput="uv('vv-sp',this.value,'px')"></div>
-              <div class="sg"><div class="sg-lbl">Particles <span class="vb" id="vv-pa">3</span></div><input type="range" id="bc-parts" min="0" max="300" value="3" oninput="uv('vv-pa',this.value,'')"></div>
-              <div class="sg">
-                <div class="sg-lbl">Warna Partikel</div>
-                <select id="bc-part-color-mode" style="width:100%;font-size:11px;padding:4px;border-radius:4px;background:var(--surface);color:var(--text);border:1px solid var(--border);">
-                    <option value="solid">Solid (pakai Particle Color)</option>
-                    <option value="rgb">RGB Acak (tiap partikel beda warna)</option>
-                </select>
-              </div>
-              <div class="sg"><div class="sg-lbl">Ukuran Partikel <span class="vb" id="vv-psize">1.0x</span></div><input type="range" id="bc-part-size" min="0.2" max="3" step="0.1" value="1.0" oninput="uv('vv-psize',this.value,'x')"></div>
-              <div class="sg">
-                <div class="sg-lbl">Efek Partikel</div>
-                <select id="bc-part-effect" style="width:100%;font-size:11px;padding:4px;border-radius:4px;background:var(--surface);color:var(--text);border:1px solid var(--border);">
-                    <option value="circle">Circle (polos)</option>
-                    <option value="spark">Spark (percikan)</option>
-                    <option value="glow">Glow (bercahaya)</option>
-                </select>
-              </div>
-              <div class="sg"><div class="sg-lbl">Transparency Partikel <span class="vb" id="vv-popa">100%</span></div><input type="range" id="bc-part-opacity" min="0" max="100" value="100" oninput="uv('vv-popa',this.value,'%')"></div>
-              <!-- TAMBAHKAN INI -->
-              <div class="sg">
-                <div class="sg-lbl">Jumlah Titik Poligon <span class="vb" id="vv-pp">180</span></div>
-                <input type="range" id="bc-polygon-points" min="50" max="300" value="180" step="10" oninput="uv('vv-pp',this.value,'')">
-              </div>
             </div>
             
             <div style="display:flex;gap:8px;margin-top:12px; align-items:center;">
               <button type="button" class="btn btn-g btn-sm" onclick="saveVisPreset()">💾 Simpan Preset</button>
-              <select id="vis-preset-load" style="width:180px" onchange="loadVisPreset(this.value)"><option value="">-- Load Preset --</option></select>
+              <select id="vis-preset-load" style="width:180px; padding:6px; font-size:11px; background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:4px;" onchange="loadVisPreset(this.value)"><option value="">-- Load Preset --</option></select>
               <button type="button" class="btn btn-danger btn-sm" onclick="deleteVisPreset()">🗑 Hapus Preset</button>
             </div>
-          </div> <div id="vis-random-wrap" style="display:none">
-            <div style="background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.15);border-radius:var(--r);padding:16px;text-align:center">
-              <div style="font-size:28px;margin-bottom:8px">🎲</div>
-              <div style="font-size:13px;font-weight:700;margin-bottom:4px">Random Preset Mode</div>
-              <div style="font-family:var(--font-m);font-size:11px;color:var(--muted);margin-bottom:14px">Setiap video akan menggunakan preset yang berbeda secara acak dari daftar yang kamu ceklist.</div>
-              <div id="random-preset-list" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center; max-height:100px; overflow-y:auto; padding:10px;"></div>
-              <div style="margin-top:12px;font-family:var(--font-m);font-size:10px;color:var(--muted)" id="random-preset-note">Belum ada preset. Simpan dulu di mode Manual.</div>
-            </div>
           </div>
-        </div>
         <div style="display:flex;justify-content:space-between;margin-top:20px;">
           <button class="btn btn-g" onclick="goStep(2)">← Kembali</button>
           <button class="btn btn-p" onclick="goStep(4)">Lanjut: Preview & Proses →</button>
@@ -1105,18 +1019,12 @@ input[type=color] { padding:0; height:36px; width:100%; border:1px solid var(--b
     <span class="nav-icon">◈</span><span>Tasks</span>
     <span class="bnav-badge" id="bn-badge" style="display:none">0</span>
   </button>
-  <button class="bnav-item" onclick="go('gallery')" id="bn-gallery">
-    <span class="nav-icon">▦</span><span>Aset</span>
-  </button>
-  <button class="bnav-item" onclick="go('titles')" id="bn-titles">
-    <span class="nav-icon">✦</span><span>Title</span>
-  </button>
+  
+  
   <button class="bnav-item" onclick="go('batch')" id="bn-batch">
     <span class="nav-icon">◉</span><span>Batch</span>
   </button>
-  <button class="bnav-item" onclick="go('settings')" id="bn-settings">
-    <span class="nav-icon">◎</span><span>Set</span>
-  </button>
+  
 </nav>
 <div class="toast-wrap" id="toast-wrap"></div>
   </div>
@@ -1138,6 +1046,7 @@ let generatedTitles = [];
 let currentGalleryType = 'audio';
 let currentGalleryCh = '';
 let currentTitleCh = '';
+const centerLogo = new Image(); // Tulis baris ini di sini
 
 function loadTgConfig() {
     fetch('/api/get_telegram').then(r => r.json()).then(d => {
@@ -1287,10 +1196,8 @@ function onDescModeChange() {
 const PAGE_META = {
   dashboard: { t: 'Dashboard',       s: 'Overview sistem & analytics' },
   tasks:     { t: 'Task Monitor',    s: 'Real-time render & upload queue' },
-  gallery:   { t: 'Gallery',          s: 'Kelola audio, background & thumbnail' },
-  titles:    { t: 'Title Generator', s: 'Upload bank & generate judul baru' },
   batch:     { t: 'Batch Creator',   s: 'Buat banyak video sekaligus' },
-  settings:  { t: 'Settings',        s: 'API Google, channel & konfigurasi' }
+  
 };
 
 function go(id, el) {
@@ -1946,8 +1853,24 @@ function goStep(n) {
       const mode = document.getElementById('bc-source-mode') ? document.getElementById('bc-source-mode').value : 'mix';
       
       if (mode === 'mix') {
-          if (!galleryData.audio || galleryData.audio.length === 0) {
-              toast('Folder Audio kosong! Upload mp3 dulu di Gallery.', 'warn');
+          // Ambil jumlah stok dari memori
+          const nonCidStock = galleryData.audio_non_cid ? galleryData.audio_non_cid.length : 0;
+          const cidStock = galleryData.audio_cid ? galleryData.audio_cid.length : 0;
+          
+          // Ambil jumlah yang diminta user dari input
+          const reqNonCid = parseInt(document.getElementById('bc-mp3-non-cid').value) || 0;
+          const reqCid = parseInt(document.getElementById('bc-mp3-cid').value) || 0;
+
+          if (reqNonCid > 0 && nonCidStock === 0) {
+              toast('Folder Audio (Non-CID) kosong! Upload mp3 dulu di Gallery.', 'warn');
+              return;
+          }
+          if (reqCid > 0 && cidStock === 0) {
+              toast('Folder Audio (CID) kosong! Upload mp3 dulu di Gallery.', 'warn');
+              return;
+          }
+          if (reqNonCid === 0 && reqCid === 0) {
+              toast('Pilih minimal 1 audio (Non-CID atau CID) untuk mode Klasik!', 'warn');
               return;
           }
           if (!galleryData.background || galleryData.background.length === 0) {
@@ -1987,6 +1910,7 @@ function goStep(n) {
 }
 
 function updateCenterLogo() {
+    centerLogo.crossOrigin = "anonymous"; // 🔥 Tambahan wajib agar aman digambar di Canvas
     const yt_id = document.getElementById('bc-channel')?.value;
     if (yt_id && channels && channels.length > 0) {
         const ch = channels.find(c => c.yt_id === yt_id);
@@ -2005,11 +1929,12 @@ function onBcChannelChange() {
   if (typeof updateCenterLogo === 'function') updateCenterLogo(); 
   
   if (!yt_id) { 
-      ['bc-audio-status', 'bc-bg-status', 'bc-base-status', 'bc-thumb-status', 'bc-title-status'].forEach(id => { 
+      // Masukkan kedua ID status audio yang baru ke dalam array reset ini
+      ['bc-audio-non-status', 'bc-audio-cid-status', 'bc-bg-status', 'bc-base-status', 'bc-thumb-status', 'bc-title-status'].forEach(id => { 
           const el = document.getElementById(id);
           if (el) { el.textContent = 'Pilih channel dulu'; el.style.color = 'var(--text2)'; }
       }); 
-      galleryData = { audio: [], background: [], thumbnails: [], base_video: [] }; 
+      galleryData = { audio_non_cid: [], audio_cid: [], background: [], thumbnails: [], base_video: [] }; 
       if (typeof updatePreviewBackground === 'function') updatePreviewBackground(''); 
       if (typeof refreshDescPresetList === 'function') refreshDescPresetList(); 
       return; 
@@ -2017,31 +1942,34 @@ function onBcChannelChange() {
   
   fetch(`/api/get_gallery?yt_id=${yt_id}`).then(r => r.json()).then(data => {
     galleryData = data; 
-    const aCount = (data.audio || []).length; 
+    
+    // Ambil hitungan terpisah dari data JSON server
+    const aNonCount = (data.audio_non_cid || []).length; 
+    const aCidCount = (data.audio_cid || []).length; 
     const bCount = (data.background || []).length; 
-    const vCount = (data.base_video || []).length; // <--- TAMBAHAN UNTUK TAB BARU
-    const thCount = (data.thumbnails || []).length; // <--- BARU: STATUS THUMBNAILS
+    const vCount = (data.base_video || []).length; 
+    const thCount = (data.thumbnails || []).length; 
     const tCount = (titleBankData && titleBankData[yt_id] ? titleBankData[yt_id].length : 0);
     
     const setStatus = (id, count, unit) => { 
         const el = document.getElementById(id); 
         if(el) {
-            // Format teks disesuaikan agar rapi saat ditumpuk ke bawah
             el.textContent = unit + ': ' + count + (count > 0 ? ' tersedia ✓' : ' — belum ada!'); 
             el.style.color = count > 0 ? 'var(--green)' : 'var(--accent2)'; 
         }
     };
     
-    setStatus('bc-audio-status', aCount, 'Audio'); 
+    // Terapkan ke elemen yang baru
+    setStatus('bc-audio-non-status', aNonCount, 'Audio (Non-CID)'); 
+    setStatus('bc-audio-cid-status', aCidCount, 'Audio (CID)'); 
     setStatus('bc-bg-status', bCount, 'BG Biasa'); 
-    setStatus('bc-base-status', vCount, 'Video+Audio'); // <--- TAMBAHAN STATUS
-    setStatus('bc-thumb-status', thCount, 'Thumbnails'); // <--- BARU: STATUS THUMBNAILS
+    setStatus('bc-base-status', vCount, 'Video+Audio'); 
+    setStatus('bc-thumb-status', thCount, 'Thumbnails'); 
     setStatus('bc-title-status', tCount, 'Judul di bank'); 
     if (typeof updatePreviewBackground === 'function') updatePreviewBackground(yt_id);
   }).catch(() => {}); 
   
   if (typeof updateBatchPreview === 'function') updateBatchPreview();
-  
   if (typeof refreshDescPresetList === 'function') refreshDescPresetList();
 }
 
@@ -2240,9 +2168,16 @@ function processBatch() {
     if (selectedPresets.length === 0) { toast('Pilih minimal 1 Preset untuk mode Random!', 'warn'); return; }
   }
 
-  const generated_titles = Array.from({ length: count }, () => generateOneTitle(bank));
+  const titlePool = [...new Set(bank.map(title => String(title).trim()).filter(Boolean))];
+  for (let i = titlePool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [titlePool[i], titlePool[j]] = [titlePool[j], titlePool[i]];
+  }
+  const generated_titles = Array.from({ length: count }, (_, i) =>
+    titlePool.length ? titlePool[i % titlePool.length] : `Video Baru #${i + 1}`);
   const floatingCb = document.getElementById('bc-use-floating-card');
   const is_floating = floatingCb ? floatingCb.checked : false;
+  const floating_mode = document.getElementById('bc-floating-card-mode')?.value || 'intro_5s';
 
   const descMode = document.getElementById('bc-desc-mode')?.value || 'manual';
   const singleDesc = document.getElementById('bc-desc').value;
@@ -2271,7 +2206,8 @@ function processBatch() {
     playlist_id: document.getElementById('bc-playlist').value,
     count: count,
     source_mode: document.getElementById('bc-source-mode').value,
-    mp3_per_video: parseInt(document.getElementById('bc-mp3-count').value) || 5,
+    mp3_non_cid_count: parseInt(document.getElementById('bc-mp3-non-cid').value) || 0,
+    mp3_cid_count: parseInt(document.getElementById('bc-mp3-cid').value) || 0,
     vid_per_video: parseInt(document.getElementById('bc-vid-count').value) || 1,   // 🔥 BARU: Jml Video Acak utk mode Video Utuh
     bg_count: parseInt(document.getElementById('bc-bg-count').value) || 1,
     target_duration_hours: target_durations_hours[0],
@@ -2282,12 +2218,13 @@ function processBatch() {
     description: document.getElementById('bc-desc').value, 
     tags: document.getElementById('bc-tags').value,
     privacy: document.getElementById('bc-privacy').value,
-    vis_mode: visMode,
-    vis_preset: visMode === 'random' ? 'random' : getVisConfig(),
+    vis_mode: visMode, 
+    vis_preset: getVisConfig(),
     vis_presets_allowed: selectedPresets,
     generated_titles: generated_titles,
     generated_descriptions: generated_descs,
     use_floating_card: is_floating,
+    floating_card_mode: floating_mode,
   };
 
   const btn = document.getElementById('btn-batch-create');
@@ -2340,70 +2277,170 @@ function refreshBatchDropdowns() {
 }
 
 // ────────────────────────────────────────────────────────
-//  VISUALIZER PRESETS & SAKLAR KONTROL v2.0
+//  LAYER SYSTEM (HULK EDITION)
 // ────────────────────────────────────────────────────────
-function uv(id, v, s) { const el = document.getElementById(id); if (el) el.textContent = v + s; }
-
-function toggleInstanceInputs() {
-    const isDouble = document.getElementById('bc-vis-instance').value === 'double';
-    document.getElementById('vis2-pos-wrap').style.display = isDouble ? 'block' : 'none';
-    
-    if (isDouble) {
-        document.getElementById('bc-pos-x').value = 25; uv('vv-px', 25, '% X');
-        document.getElementById('bc-pos-x2').value = 75; uv('vv-px2', 75, '% X');
-    } else {
-        document.getElementById('bc-pos-x').value = 50; uv('vv-px', 50, '% X');
-    }
-}
-
-function toggleColorInputs() {
-    const isRainbow = document.getElementById('bc-color-mode').value === 'rainbow';
-    const pickers = document.getElementById('manual-color-pickers');
-    if (pickers) pickers.style.opacity = isRainbow ? "0.4" : "1";
-    document.getElementById('bc-col-bot').disabled = isRainbow;
-    document.getElementById('bc-col-top').disabled = isRainbow;
-}
+let effectLayers = [];
 
 function getVisConfig() {
-  return {
-    vis_instance: document.getElementById('bc-vis-instance')?.value || 'single',
-    is_double: (document.getElementById('bc-vis-instance')?.value === 'double'),
-    bar_style: document.getElementById('bc-bar-style')?.value || 'bottom',
-    color_mode: document.getElementById('bc-color-mode')?.value || 'gradient',
-    color_top: document.getElementById('bc-col-top')?.value || '#00e5ff',
-    color_bot: document.getElementById('bc-col-bot')?.value || '#10b981',
-    color_part: document.getElementById('bc-col-part')?.value || '#ffffff',
-    part_color_mode: document.getElementById('bc-part-color-mode')?.value || 'solid',
-    part_size: parseFloat(document.getElementById('bc-part-size')?.value || 1.0),
-    part_effect: document.getElementById('bc-part-effect')?.value || 'circle',
-    part_opacity: parseFloat(document.getElementById('bc-part-opacity')?.value || 100),
-    enable_glow: document.getElementById('bc-enable-glow')?.checked || false,
-    glow_intensity: parseFloat(document.getElementById('bc-glow-intensity')?.value || 15),
-    pos_x: parseFloat(document.getElementById('bc-pos-x')?.value || 50),
-    pos_y: parseFloat(document.getElementById('bc-pos-y')?.value || 85),
-    pos_x2: parseFloat(document.getElementById('bc-pos-x2')?.value || 75),
-    pos_y2: parseFloat(document.getElementById('bc-pos-y2')?.value || 85),
-    width_pct: parseFloat(document.getElementById('bc-width')?.value || 60),
-    max_height: parseFloat(document.getElementById('bc-maxh')?.value || 40),
-    idle_height: parseFloat(document.getElementById('bc-idle')?.value || 5),
-    bar_count: parseInt(document.getElementById('bc-bars')?.value || 64),
-    bar_width: parseInt(document.getElementById('bc-bar-width')?.value || 12),   // 🔥 BARU: Bar Width manual
-    reactivity: parseFloat(document.getElementById('bc-react')?.value || 0.66),
-    spacing: parseInt(document.getElementById('bc-gap')?.value || 3),
-    part_amount: parseInt(document.getElementById('bc-parts')?.value || 3),
-    part_speed: parseFloat(document.getElementById('bc-pspd')?.value || 1.0),
-    rotation_speed: parseFloat(document.getElementById('bc-rotation-speed')?.value || 2),
-    polygon_points: parseInt(document.getElementById('bc-polygon-points')?.value || 180),
-    enable_logo_pulse: document.getElementById('bc-enable-logo-pulse')?.checked !== false,
-    enable_bg_pulse: document.getElementById('bc-bg-pulse')?.checked !== false,
-    bg_zoom: parseFloat(document.getElementById('bc-bg-zoom')?.value || 5),
-    use_floating_card: document.getElementById('bc-use-floating-card')?.checked || false,
-    logo_url: typeof centerLogo !== 'undefined' ? centerLogo.src : ''
-  };
+    return {
+        use_floating_card: document.getElementById('bc-use-floating-card')?.checked || false,
+        floating_card_mode: document.getElementById('bc-floating-card-mode')?.value || 'intro_5s',
+        layers: effectLayers
+    };
+}
+
+function addEffectLayer() {
+    const type = document.getElementById('new-layer-type').value;
+    let newLayer = { id: `${type}_${Date.now()}`, name: type, intensity: 50 };
+    
+    // Pisahkan settingan khusus Partikel vs Visualizer Bar
+    if (type.includes('Particle')) {
+        newLayer.color1 = '#10b981'; 
+        newLayer.color2 = '#00e5ff';
+        newLayer.color_mode = 'Solid / Gradien';
+        newLayer.part_count = 60;       // Jumlah Partikel
+        newLayer.size = 50;             // Ukuran Partikel
+        newLayer.flow_speed = 40;       // Kecepatan Aliran (Flow)
+        newLayer.intensity = 65;        // Dorongan / Sensitivitas Beat
+        newLayer.part_style = 'flow_beat'; // 'flow_beat' atau 'beat_spawn'
+    } else if (type.includes('Visualizer')) {
+        newLayer.color1 = '#10b981'; newLayer.color2 = '#00e5ff';
+        newLayer.color_mode = 'Solid / Gradien';
+        newLayer.size = 60; newLayer.thickness = 30;
+        newLayer.pos_x = 50; newLayer.pos_y = 85;
+        newLayer.num_bars = type.includes('Waveform') ? 60 : 64;
+        newLayer.height_scale = 50; 
+        newLayer.flow_speed = 80;
+        newLayer.bar_gap = 3;
+        if (type.includes('Radial Bar')) {
+            newLayer.pos_y = 50;
+            newLayer.use_logo = true;
+        }
+    } else if (type === 'Color Boost (CapCut Vibe)') {
+        newLayer.intensity = 30; 
+    } else {
+        newLayer.intensity = 50; 
+    }
+    
+    effectLayers.push(newLayer);
+    renderEffectLayers();
+}
+
+function updateLayer(id, key, val) {
+    const idx = effectLayers.findIndex(l => l.id === id);
+    if (idx > -1) effectLayers[idx][key] = val;
+}
+
+function removeLayer(id) {
+    effectLayers = effectLayers.filter(l => l.id !== id);
+    renderEffectLayers();
+}
+
+function renderEffectLayers() {
+    const cont = document.getElementById('layers-container');
+    if(!cont) return;
+    if (effectLayers.length === 0) {
+        cont.innerHTML = `<div style="text-align:center; padding:20px; border:1px dashed var(--border); border-radius:8px; color:var(--muted); font-size:11px;">Belum ada lapisan efek. Pilih dari dropdown dan klik "+ Tambah".</div>`;
+        return;
+    }
+    
+    cont.innerHTML = effectLayers.map((layer, index) => {
+        let controlsHtml = '';
+        
+        // 🔥 1. KONTROL KHUSUS PARTIKEL (Bukan Pengaturan Bar!)
+        if (layer.name.includes('Particle')) {
+            controlsHtml = `
+                <div style="display:flex; gap:10px; margin-top:8px; align-items:center;">
+                    <div><span style="font-size:9px; color:var(--muted);">Warna 1</span><br><input type="color" value="${layer.color1 || '#10b981'}" onchange="updateLayer('${layer.id}', 'color1', this.value)" style="width:40px; height:24px; padding:0; border:none; cursor:pointer;"></div>
+                    <div><span style="font-size:9px; color:var(--muted);">Warna 2</span><br><input type="color" value="${layer.color2 || '#00e5ff'}" onchange="updateLayer('${layer.id}', 'color2', this.value)" style="width:40px; height:24px; padding:0; border:none; cursor:pointer;"></div>
+                    <div style="flex:1;"><span style="font-size:9px; color:var(--accent);">Ukuran Partikel (${layer.size || 50}%)</span><input type="range" min="10" max="150" value="${layer.size || 50}" oninput="updateLayer('${layer.id}', 'size', parseFloat(this.value)); this.previousSibling.textContent='Ukuran Partikel ('+this.value+'%)'"></div>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:8px;">
+                    <div style="flex:1;"><span style="font-size:9px; color:var(--accent);">Jumlah Partikel (${layer.part_count || 60})</span><input type="range" min="10" max="200" value="${layer.part_count || 60}" oninput="updateLayer('${layer.id}', 'part_count', parseFloat(this.value)); this.previousSibling.textContent='Jumlah Partikel ('+this.value+')'"></div>
+                    <div style="flex:1;"><span style="font-size:9px; color:var(--accent);">Kecepatan Aliran / Flow (${layer.flow_speed || 40}%)</span><input type="range" min="0" max="100" value="${layer.flow_speed !== undefined ? layer.flow_speed : 40}" oninput="updateLayer('${layer.id}', 'flow_speed', parseFloat(this.value)); this.previousSibling.textContent='Kecepatan Aliran / Flow ('+this.value+'%)'"></div>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:8px; align-items:center;">
+                    <div style="flex:1;"><span style="font-size:9px; color:var(--muted);">Lonjakan Saat Beat (${layer.intensity || 65}%)</span><input type="range" min="0" max="100" value="${layer.intensity !== undefined ? layer.intensity : 65}" oninput="updateLayer('${layer.id}', 'intensity', parseFloat(this.value)); this.previousSibling.textContent='Lonjakan Saat Beat ('+this.value+'%)'"></div>
+                    <div style="flex:1;">
+                        <span style="font-size:9px; color:var(--muted);">Gaya Partikel:</span>
+                        <select onchange="updateLayer('${layer.id}', 'part_style', this.value)" style="width:100%; margin-top:2px; padding:4px; font-size:10px; background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:4px;">
+                            <option value="flow_beat" ${layer.part_style !== 'beat_spawn' ? 'selected' : ''}>🌊 Flowing Mengalir + Dorongan Beat</option>
+                            <option value="beat_spawn" ${layer.part_style === 'beat_spawn' ? 'selected' : ''}>💥 Muncul Acak & Menyebar Saat Beat</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
+                    <span style="font-size:9px; color:var(--muted);">Mode Warna:</span>
+                    <select onchange="updateLayer('${layer.id}', 'color_mode', this.value)" style="padding:2px 4px; font-size:10px; background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:4px;">
+                        <option value="Solid / Gradien" ${layer.color_mode === 'Solid / Gradien' ? 'selected' : ''}>Campuran 2 Warna (Gradien)</option>
+                        <option value="Dual-Color Flash" ${layer.color_mode === 'Dual-Color Flash' ? 'selected' : ''}>Dual-Color (Berkedip saat Beat)</option>
+                        <option value="Dynamic RGB Shift" ${layer.color_mode === 'Dynamic RGB Shift' ? 'selected' : ''}>Dynamic RGB Shift (Pelangi)</option>
+                    </select>
+                </div>
+            `;
+        }
+        // 🔥 2. KONTROL KHUSUS VISUALIZER BAR / RADIAL / WAVEFORM
+        else if (layer.name.includes('Visualizer')) {
+            controlsHtml = `
+                <div style="display:flex; gap:10px; margin-top:8px;">
+                    <div><span style="font-size:9px; color:var(--muted);">Warna Dalam</span><br><input type="color" value="${layer.color1}" onchange="updateLayer('${layer.id}', 'color1', this.value)" style="width:40px; height:24px; padding:0; border:none; cursor:pointer;"></div>
+                    <div><span style="font-size:9px; color:var(--muted);">Warna Luar</span><br><input type="color" value="${layer.color2}" onchange="updateLayer('${layer.id}', 'color2', this.value)" style="width:40px; height:24px; padding:0; border:none; cursor:pointer;"></div>
+                    <div style="flex:1;"><span style="font-size:9px; color:var(--muted);">Ukuran/Skala (${layer.size || 60}%)</span><input type="range" min="10" max="200" value="${layer.size || 60}" oninput="updateLayer('${layer.id}', 'size', parseFloat(this.value)); this.previousSibling.textContent='Ukuran/Skala ('+this.value+'%)'"></div>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:8px;">
+                    <div style="flex:1;"><span style="font-size:9px; color:var(--muted);">Intensitas Bass (${layer.intensity || 50}%)</span><input type="range" min="0" max="100" value="${layer.intensity || 50}" oninput="updateLayer('${layer.id}', 'intensity', parseFloat(this.value)); this.previousSibling.textContent='Intensitas Bass ('+this.value+'%)'"></div>
+                    <div style="flex:1;"><span style="font-size:9px; color:var(--muted);">Ketebalan (${layer.thickness || 30}%)</span><input type="range" min="1" max="100" value="${layer.thickness || 30}" oninput="updateLayer('${layer.id}', 'thickness', parseFloat(this.value)); this.previousSibling.textContent='Ketebalan ('+this.value+'%)'"></div>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:8px;">
+                    <div style="flex:1;"><span style="font-size:9px; color:var(--accent);">Jumlah Bar (${layer.num_bars || 64})</span><input type="range" min="10" max="128" value="${layer.num_bars || 64}" oninput="updateLayer('${layer.id}', 'num_bars', parseFloat(this.value)); this.previousSibling.textContent='Jumlah Bar ('+this.value+')'"></div>
+                    <div style="flex:1;"><span style="font-size:9px; color:var(--accent);">Jarak Bar (${layer.bar_gap !== undefined ? layer.bar_gap : 3}px)</span><input type="range" min="0" max="30" value="${layer.bar_gap !== undefined ? layer.bar_gap : 3}" oninput="updateLayer('${layer.id}', 'bar_gap', parseFloat(this.value)); this.previousSibling.textContent='Jarak Bar ('+this.value+'px)'"></div>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:8px;">
+                    <div style="flex:1;"><span style="font-size:9px; color:var(--accent);">Tinggi Max (${layer.height_scale || 50}%)</span><input type="range" min="10" max="200" value="${layer.height_scale || 50}" oninput="updateLayer('${layer.id}', 'height_scale', parseFloat(this.value)); this.previousSibling.textContent='Tinggi Max ('+this.value+'%)'"></div>
+                    <div style="flex:1;"><span style="font-size:9px; color:var(--accent);">Kelenturan Beat (${layer.flow_speed || 80}%)</span><input type="range" min="10" max="98" value="${layer.flow_speed || 80}" oninput="updateLayer('${layer.id}', 'flow_speed', parseFloat(this.value)); this.previousSibling.textContent='Kelenturan Beat ('+this.value+'%)'"></div>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:8px;">
+                    <div style="flex:1;"><span style="font-size:9px; color:var(--muted);">Posisi X (${layer.pos_x || 50}%)</span><input type="range" min="0" max="100" value="${layer.pos_x || 50}" oninput="updateLayer('${layer.id}', 'pos_x', parseFloat(this.value)); this.previousSibling.textContent='Posisi X ('+this.value+'%)'"></div>
+                    <div style="flex:1;"><span style="font-size:9px; color:var(--muted);">Posisi Y (${layer.pos_y || 85}%)</span><input type="range" min="0" max="100" value="${layer.pos_y || 85}" oninput="updateLayer('${layer.id}', 'pos_y', parseFloat(this.value)); this.previousSibling.textContent='Posisi Y ('+this.value+'%)'"></div>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
+                    <span style="font-size:9px; color:var(--muted);">Mode Warna:</span>
+                    <select onchange="updateLayer('${layer.id}', 'color_mode', this.value)" style="padding:2px 4px; font-size:10px; background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:4px;">
+                        <option value="Solid / Gradien" ${layer.color_mode === 'Solid / Gradien' ? 'selected' : ''}>Solid / Gradien Custom</option>
+                        <option value="Dual-Color Flash" ${layer.color_mode === 'Dual-Color Flash' ? 'selected' : ''}>Dual-Color (Flash saat Beat)</option>
+                        <option value="Dynamic RGB Shift" ${layer.color_mode === 'Dynamic RGB Shift' ? 'selected' : ''}>Dynamic RGB Shift (Pelangi)</option>
+                    </select>
+                </div>
+            `;
+            if (layer.name.includes('Radial Bar')) {
+                controlsHtml += `
+                <div style="display:flex; align-items:center; gap:8px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--border);">
+                    <input type="checkbox" id="logo_cb_${layer.id}" ${layer.use_logo !== false ? 'checked' : ''} onchange="updateLayer('${layer.id}', 'use_logo', this.checked)" style="width:14px; height:14px; accent-color:var(--accent); cursor:pointer;">
+                    <label for="logo_cb_${layer.id}" style="font-size:10px; color:var(--accent); font-weight:bold; cursor:pointer;">🖼️ Tampilkan Foto Profil Channel di Tengah</label>
+                </div>`;
+            }
+        } 
+        else {
+            controlsHtml = `
+                <div style="display:flex; gap:10px; margin-top:8px;">
+                    <div style="flex:1;"><span style="font-size:9px; color:var(--muted);">Kekuatan Efek (${layer.intensity || 50}%)</span><input type="range" min="0" max="100" value="${layer.intensity || 50}" oninput="updateLayer('${layer.id}', 'intensity', parseFloat(this.value)); this.previousSibling.textContent='Kekuatan Efek ('+this.value+'%)'"></div>
+                </div>
+            `;
+        }
+
+        return `
+        <div style="background:var(--card); border:1px solid var(--border); border-left:3px solid var(--accent); padding:12px; border-radius:8px; position:relative;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-size:12px; font-weight:bold; color:var(--text);"><span style="color:var(--muted);margin-right:6px;">#${index + 1}</span>${layer.name}</div>
+                <button class="btn-danger" style="padding:4px 8px; font-size:9px; border-radius:4px;" onclick="removeLayer('${layer.id}')">✕ Hapus</button>
+            </div>
+            ${controlsHtml}
+        </div>`;
+    }).join('');
 }
 
 function saveVisPreset() {
-  const name = prompt('Nama preset:');
+  const name = prompt('Masukkan nama untuk Preset Tumpukan Efek ini:');
   if (!name || !name.trim()) return;
   const trimmed = name.trim();
   visPresets[trimmed] = getVisConfig();
@@ -2416,49 +2453,16 @@ function saveVisPreset() {
 function loadVisPreset(name) {
   if (!name || !visPresets[name]) return;
   const p = visPresets[name];
-  
-  if(p.vis_instance) document.getElementById('bc-vis-instance').value = p.vis_instance;
-  if(p.color_mode) document.getElementById('bc-color-mode').value = p.color_mode;
-  if(p.bar_style) document.getElementById('bc-bar-style').value = p.bar_style;
-  
-  document.getElementById('bc-col-bot').value = p.color_bot || '#10b981';
-  document.getElementById('bc-col-top').value = p.color_top || '#00e5ff';
-  document.getElementById('bc-col-part').value = p.color_part || '#ffffff';
-  if (document.getElementById('bc-part-color-mode')) document.getElementById('bc-part-color-mode').value = p.part_color_mode || 'solid';
-  if (document.getElementById('bc-part-size')) { document.getElementById('bc-part-size').value = p.part_size || 1.0; uv('vv-psize', p.part_size || 1.0, 'x'); }
-  if (document.getElementById('bc-part-effect')) document.getElementById('bc-part-effect').value = p.part_effect || 'circle';
-  if (document.getElementById('bc-part-opacity')) { document.getElementById('bc-part-opacity').value = p.part_opacity !== undefined ? p.part_opacity : 100; uv('vv-popa', p.part_opacity !== undefined ? p.part_opacity : 100, '%'); }
-  document.getElementById('bc-enable-glow').checked = p.enable_glow !== undefined ? p.enable_glow : true;
-  document.getElementById('bc-enable-logo-pulse').checked = p.enable_logo_pulse !== undefined ? p.enable_logo_pulse : true;
-  
-  if (document.getElementById('bc-bg-pulse')) {
-      document.getElementById('bc-bg-pulse').checked = p.enable_bg_pulse !== undefined ? p.enable_bg_pulse : true;
+  if(p.use_floating_card !== undefined) {
+      const cb = document.getElementById('bc-use-floating-card');
+      if(cb) cb.checked = p.use_floating_card;
   }
-  
-  const map = [
-    ['bc-pos-x',  'vv-px', '% X'], ['bc-pos-y',  'vv-py', '% Y'], ['bc-pos-x2', 'vv-px2', '% X'], ['bc-pos-y2', 'vv-py2', '% Y'],
-    ['bc-width',  'vv-wp', '%'],   ['bc-maxh',   'vv-mh', '%'],       ['bc-idle',   'vv-ih', 'px'],  ['bc-bars',   'vv-bc', ''],
-    ['bc-bar-width', 'vv-bw', 'px'], // 🔥 BARU: Bar Width
-    ['bc-react',  'vv-r',  'x'],   ['bc-gap',    'vv-sp', 'px'],  ['bc-parts',  'vv-pa', ''],    ['bc-pspd',   'vv-ps', 'x'],
-    ['bc-rotation-speed', 'vv-rs', ''], ['bc-glow-intensity', '', ''], ['bc-bg-zoom', 'vv-bgz', '%']
-  ];
-  const keys = ['pos_x','pos_y','pos_x2','pos_y2','width_pct','max_height','idle_height','bar_count','bar_width','reactivity','spacing','part_amount','part_speed','rotation_speed','glow_intensity','bg_zoom'];
-  map.forEach(([elId, lblId, unit], i) => {
-    const el = document.getElementById(elId);
-    if (el && p[keys[i]] !== undefined) {
-      let val = p[keys[i]];
-      if (typeof val === 'number' && !Number.isInteger(val)) val = parseFloat(val.toFixed(2)); 
-      el.value = val; if(lblId) uv(lblId, val, unit);
-    }
-  });
-
-  // ===== TAMBAHKAN INI UNTUK SLIDER POLIGON =====
-  if (p.polygon_points !== undefined) {
-      document.getElementById('bc-polygon-points').value = p.polygon_points;
-      uv('vv-pp', p.polygon_points, '');
+  if(p.floating_card_mode !== undefined) {
+      const fm = document.getElementById('bc-floating-card-mode');
+      if(fm) fm.value = p.floating_card_mode;
   }
-
-  toggleInstanceInputs(); toggleColorInputs();
+  effectLayers = p.layers || [];
+  renderEffectLayers();
 }
 
 function exportVisPreset() {
@@ -2503,20 +2507,6 @@ function deleteVisPreset() {
 function refreshVisPresetList() {
   const sel = document.getElementById('vis-preset-load'); const keys = Object.keys(visPresets);
   if(sel) sel.innerHTML = '<option value="">-- Load Preset --</option>' + keys.map(k => `<option value="${k}">${k}</option>`).join('');
-  const randList = document.getElementById('random-preset-list'); const note = document.getElementById('random-preset-note');
-  if (!keys.length) { if(randList) randList.innerHTML = ''; if(note) note.textContent = 'Belum ada preset tersimpan. Simpan dulu di mode Manual.'; return; }
-  if(note) note.textContent = keys.length + ' preset tersedia. Ceklist yang ingin dimasukkan ke dalam acakan sistem.';
-  if(randList) randList.innerHTML = keys.map(k => `
-    <label style="display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);padding:6px 12px;border-radius:20px;cursor:pointer;color:var(--text);">
-      <input type="checkbox" value="${k}" checked style="width:14px;height:14px;accent-color:var(--accent);">
-      <span style="font-size:11px;font-weight:700;">${k}</span>
-    </label>`).join('');
-}
-
-function onVisModeChange() {
-  const mode = document.getElementById('bc-vis-mode').value;
-  document.getElementById('vis-manual-wrap').style.display = mode === 'manual' ? 'block' : 'none';
-  document.getElementById('vis-random-wrap').style.display = mode === 'random' ? 'block' : 'none';
 }
 
 function updatePreviewBackground(yt_id) {
@@ -2524,460 +2514,601 @@ function updatePreviewBackground(yt_id) {
   if (!bgVid || !bgImg) return;
   if (!yt_id) { bgVid.style.display = 'none'; bgImg.style.display = 'none'; return; }
 
-  // 🔥 BARU: background preview mengikuti Jalur Render Engine yang aktif.
-  // Mode Video Utuh: background = video acak dari folder base_videos (bukan folder backgrounds).
   const mode = document.getElementById('bc-source-mode')?.value || 'mix';
   let files = [], folder = '';
   if (mode === 'single_video') {
-      files = galleryData.base_video || [];
-      folder = 'base_videos';
+      files = galleryData.base_video || []; folder = 'base_videos';
   } else {
-      files = galleryData.background || [];
-      folder = 'backgrounds';
+      files = galleryData.background || []; folder = 'backgrounds';
   }
   if (!files.length) { bgVid.style.display = 'none'; bgImg.style.display = 'none'; return; }
   const randBg = files[Math.floor(Math.random() * files.length)].name;
   const ext = randBg.split('.').pop().toLowerCase(); const url = `/uploads/${yt_id}/${folder}/${randBg}`;
-  if (['mp4', 'webm', 'mov'].includes(ext)) { bgImg.style.display = 'none'; bgVid.src = url; bgVid.style.display = 'block'; /* video tidak di-autoplay; diputar manual saat Play preview */ }
+  if (['mp4', 'webm', 'mov'].includes(ext)) { 
+      bgImg.style.display = 'none'; 
+      bgVid.src = url; 
+      bgVid.style.display = 'block'; 
+      bgVid.play().catch(e => console.log("Autoplay tertunda:", e));
+  }
   else { bgVid.style.display = 'none'; bgImg.src = url; bgImg.style.display = 'block'; }
 }
 
 // ────────────────────────────────────────────────────────
-//  ENGINE LIVE PREVIEW v2.0 (SINKRONISASI INTEGRAL)
+//  ENGINE LIVE PREVIEW (HULK JAVASCRIPT - TRANSIENT BEAT & TRUE GLITCH)
 // ────────────────────────────────────────────────────────
-let previewCanvas = null;
-let previewCtx = null;
-const centerLogo = new Image();
-centerLogo.crossOrigin = "Anonymous";
-
 function drawLivePreview() {
-    if (!previewCanvas || !previewCtx) {
-        previewCanvas = document.getElementById('preset_canvas');
-        if (!previewCanvas) { requestAnimationFrame(drawLivePreview); return; }
-        previewCtx = previewCanvas.getContext('2d');
-    }
+    if (!visCanvas || !vCtx) { initCanvas(); if (!visCanvas) return; }
     
     const panelBatch = document.getElementById('panel-batch');
-    if (!panelBatch || !panelBatch.classList.contains('active')) {
-        requestAnimationFrame(drawLivePreview); return;
-    }
+    if (!panelBatch || !panelBatch.classList.contains('active')) { requestAnimationFrame(drawLivePreview); return; }
     
-    const ctx = previewCtx; const cw = previewCanvas.width; const ch = previewCanvas.height;
+    const ctx = vCtx; 
+    const cw = visCanvas.width; 
+    const ch = visCanvas.height;
     if (cw <= 0 || ch <= 0) { requestAnimationFrame(drawLivePreview); return; }
     
-    let cfg = {};
-    try { cfg = getVisConfig(); } catch(e) { requestAnimationFrame(drawLivePreview); return; }
+    // 1. BACA ENERGI BASS MURNI & ENVELOPE FOLLOWER (ANTI-LEWAT BEAT & SUPER SMOOTH)
+    let isPlaying = (typeof isPreviewPlaying !== 'undefined' && isPreviewPlaying);
+    let rawBass = 0;
 
-    // 🔥 1. RUMUS SKALA: Sesuaikan ukuran baris/efek web agar proporsional dengan 1080p
-    const scale = ch / 1080;
-    cfg.spacing = cfg.spacing * scale;
-    cfg.idle_height = cfg.idle_height * scale;
-    cfg.glow_intensity = (cfg.glow_intensity * scale) * 3; // Dikali 3 agar tebalnya sama dengan OpenCV
+    if (isPlaying && typeof realtimeBars !== 'undefined') {
+        // Fokus pada bin 0 - 4 (Frekuensi Sub-Bass & Kick Drum)
+        let maxB = 0;
+        let sumB = 0;
+        for (let i = 0; i < 5; i++) {
+            let v = (realtimeBars[i] || 0) / 1.5;
+            if (v > maxB) maxB = v;
+            sumB += v;
+        }
+        rawBass = Math.min(1.0, (maxB * 0.65) + ((sumB / 5.0) * 0.35));
+    }
 
-    const barCount = Math.max(8, cfg.bar_count);
-    let rawBars = new Array(barCount).fill(0);
-    
-    if (typeof isPreviewPlaying !== 'undefined' && isPreviewPlaying && typeof realtimeBars !== 'undefined') {
-        for (let i = 0; i < barCount; i++) rawBars[i] = realtimeBars[i] || 0;
+    if (window.fastBass === undefined) window.fastBass = 0;
+    if (window.slowBass === undefined) window.slowBass = 0;
+    if (window.smoothZoomPunch === undefined) window.smoothZoomPunch = 0;
+
+    if (!isPlaying) {
+        window.fastBass = 0;
+        window.slowBass = 0;
+        window.smoothZoomPunch = 0;
     } else {
-        if (typeof window.previewDummyTime === 'undefined') window.previewDummyTime = 0;
-        window.previewDummyTime += 0.05;
-        for (let i = 0; i < barCount; i++) {
-            const freq = (i / barCount) * Math.PI * 4;
-            const value = (Math.sin(window.previewDummyTime * 3 + freq) * 0.5 + 0.5) * (Math.sin(window.previewDummyTime * 0.8) * 0.3 + 0.7);
-            rawBars[i] = Math.min(1, Math.max(0, value));
+        // Fast envelope menangkap puncak ketukan instan, Slow envelope melacak rata-rata lagu
+        window.fastBass = rawBass > window.fastBass 
+            ? (window.fastBass * 0.2) + (rawBass * 0.8) 
+            : (window.fastBass * 0.75) + (rawBass * 0.25);
+        window.slowBass = (window.slowBass * 0.92) + (rawBass * 0.08);
+
+        // Hitung lonjakan (onset) di atas rata-rata + dorongan bass murni saat drop keras
+        let onset = Math.max(0, window.fastBass - (window.slowBass * 0.85));
+        let rawPunch = Math.min(1.0, (onset * 3.2) + Math.pow(rawBass, 3.0) * 0.6);
+
+        // Kurva pegas (Spring Smooth): Naik sigap (65%), turun mulus mengalir (82%)
+        if (rawPunch > window.smoothZoomPunch) {
+            window.smoothZoomPunch = (window.smoothZoomPunch * 0.35) + (rawPunch * 0.65);
+        } else {
+            window.smoothZoomPunch = (window.smoothZoomPunch * 0.82) + (rawPunch * 0.18);
         }
     }
-
-    let bars = new Array(barCount).fill(0);
-    if (['bottom', 'center', 'circle', 'horizontal', 'led_eq'].includes(cfg.bar_style)) {
-        for (let i = 0; i < barCount; i++) {
-            const fraction = (i * 0.618033988749895) % 1.0;
-            let sourceIdx = Math.floor(fraction * barCount);
-            sourceIdx = Math.max(0, Math.min(barCount - 1, sourceIdx));
-            bars[i] = rawBars[sourceIdx];
-        }
-    } else {
-        for (let i = 0; i < barCount; i++) bars[i] = rawBars[i];
-    }
-    
-    if (!window.prevPreviewBars || window.prevPreviewBars.length !== barCount) window.prevPreviewBars = new Array(barCount).fill(0);
-    for (let i = 0; i < barCount; i++) {
-        window.prevPreviewBars[i] = (window.prevPreviewBars[i] * 0.85) + (bars[i] * cfg.reactivity * (1 - 0.85));
-    }
-    const finalBars = window.prevPreviewBars;
+    const beatPunch = window.smoothZoomPunch;
 
     ctx.clearRect(0, 0, cw, ch);
-    let vS_global = 0; for(let b=0; b<barCount; b++) vS_global += finalBars[b];
-    
-    // 🔥 2. RUMUS JEDAG-JEDUG (Samakan dengan Python)
-    const avgVol_global = vS_global / barCount; // NAMA ASLI (jangan diubah agar tidak error!)
-    const vol_rms = avgVol_global * 10;         // RMS nendang untuk background
 
-    // ---- Deteksi "hit" sederhana (mirror logic is_hit di Python) ----
-    // dipakai buat trigger burst partikel, biar sinkron sama render final (bukan animasi acak)
-    if (window.__volRmsAvg === undefined) window.__volRmsAvg = vol_rms;
-    window.__volRmsAvg = window.__volRmsAvg * 0.9 + vol_rms * 0.1;
-    // longgarkan: dulu butuh spike DAN vol_rms>1.5 sekaligus (kegabung ketat banget).
-    // sekarang cukup salah satu: lonjakan jelas ATAU volume udah cukup kencang.
-    const isHitNow = (vol_rms > window.__volRmsAvg * 1.15 && vol_rms > 0.3) || vol_rms > 1.2;
-    
-    const enableBgPulse = cfg.enable_bg_pulse !== undefined ? cfg.enable_bg_pulse : true;
-    const bgZoomPct = cfg.bg_zoom !== undefined ? cfg.bg_zoom : 5; 
-    
-    const bgScale = enableBgPulse ? 1.0 + (Math.min(vol_rms, 3.0) * (bgZoomPct / 100.0)) : 1.0;
-    const bgW = cw * bgScale; const bgH = ch * bgScale;
-    const offsetX = (cw - bgW) / 2; const offsetY = (ch - bgH) / 2;
-    
+    // 2. RENDER BACKGROUND & SMOOTH ZOOM JEDAG-JEDUG
     const bgImg = document.getElementById('preview_bg_img');
     const bgVid = document.getElementById('preview_bg_vid');
+    let sourceEl = null;
+    if (bgVid && bgVid.readyState >= 2 && bgVid.style.display !== 'none') sourceEl = bgVid;
+    else if (bgImg && bgImg.src && bgImg.complete && bgImg.style.display !== 'none') sourceEl = bgImg;
 
-    // 🔥 BARU: Mode Video Utuh → video dari base_videos dirender langsung sebagai background
-    // di canvas (video diputar terpisah untuk audio, jadi kita render frame video ke canvas
-    // berdasarkan mode yang aktif, bukan hanya display CSS).
-    const srcMode = document.getElementById('bc-source-mode')?.value || 'mix';
-    if (srcMode === 'single_video' && bgVid && bgVid.src && bgVid.readyState >= 2) {
-        try { ctx.drawImage(bgVid, offsetX, offsetY, bgW, bgH); } catch(e) {}
-    } else if (bgImg && bgImg.style.display !== 'none' && bgImg.src && bgImg.complete) {
-        try { ctx.drawImage(bgImg, offsetX, offsetY, bgW, bgH); } catch(e) {}
-    } else if (bgVid && bgVid.src && bgVid.readyState >= 2) {
-        try { ctx.drawImage(bgVid, offsetX, offsetY, bgW, bgH); } catch(e) {}
-    }
-    
-    function hexToRgb(hex) { return { r: parseInt(hex.slice(1,3), 16), g: parseInt(hex.slice(3,5), 16), b: parseInt(hex.slice(5,7), 16) }; }
-    const botColor = hexToRgb(cfg.color_bot); const topColor = hexToRgb(cfg.color_top);
-    
-    function getVisualColor(i, total) {
-        if (cfg.color_mode === 'rainbow') return `hsl(${(i / total) * 360}, 100%, 60%)`;
-        const t = i / total;
-        return `rgb(${Math.floor(topColor.r * t + botColor.r * (1 - t))}, ${Math.floor(topColor.g * t + botColor.g * (1 - t))}, ${Math.floor(topColor.b * t + botColor.b * (1 - t))})`;
-    }
-    
-    const rotationOffset = timeTick * (cfg.rotation_speed * 0.01);
-    ctx.lineCap = 'round';
-    
-    const instances = cfg.vis_instance === 'double' ? 2 : 1;
-    for (let inst = 0; inst < instances; inst++) {
-        let currentPosX = (inst === 0) ? cfg.pos_x : cfg.pos_x2;
-        let currentPosY = (inst === 0) ? cfg.pos_y : cfg.pos_y2;
-        let currentWidth = (cfg.vis_instance === 'double') ? cfg.width_pct * 0.45 : cfg.width_pct;
-        
-        const totW = cw * (currentWidth / 100);
-        // 🔥 BARU: barW manual dari slider "Bar Width" (default 12px). Kalau 0 atau kosong,
-        // pakai hitungan otomatis (lebar total / jumlah bar) seperti sebelumnya.
-        // 🔥 FIX: pastikan sisa area untuk bar tidak pernah negatif (gap kecilkan proporsional),
-        // agar saat Width Pct = 100% & bar count banyak, bar tetap tersebar simetris di tengah.
-        let barW = (cfg.bar_width && cfg.bar_width > 0) ? cfg.bar_width : 0;
-        if (barW <= 0) {
-            const maxGapTotal = totW * 0.4; // gap tidak boleh menelan >40% area
-            const usedGap = Math.min(cfg.spacing * (barCount - 1), maxGapTotal);
-            barW = Math.max(2, (totW - usedGap) / barCount);
-        }
-        const centerX = cw * (currentPosX / 100);
-        const centerY = ch * (currentPosY / 100);
-        const maxBarH = ch * (cfg.max_height / 100);
-        // 🔥 BARU: saat Live Audio Preview diputar, idleHeight diturunkan agar bar terlihat
-        // datar saat diam dan lebih responsif terhadap volume (mirip perilaku backend).
-        const idleH = (typeof isPreviewPlaying !== 'undefined' && isPreviewPlaying)
-            ? Math.min(maxBarH, cfg.idle_height * 0.15)
-            : Math.min(maxBarH, cfg.idle_height);
+    if (sourceEl) {
+        sourceEl.style.opacity = '0'; 
 
-        ctx.shadowBlur = cfg.enable_glow ? cfg.glow_intensity : 0;
+        let zoomScale = 1.0; 
+        let glitchShift = 0; 
+        let cbAlpha = 0;
 
-        if (cfg.bar_style === 'bottom' || cfg.bar_style === 'center') {
-            const startX = centerX - totW / 2; const baseY = centerY;
-            for (let i = 0; i < barCount; i++) {
-                const height = Math.max(2, Math.max(idleH, finalBars[i] * maxBarH));
-                const x = startX + (totW / barCount) * i;
-                const bw = (cfg.bar_width && cfg.bar_width > 0) ? cfg.bar_width
-                    : Math.max(2, (totW / barCount) - cfg.spacing);
-                let y1 = (cfg.bar_style === 'center') ? baseY - (height / 2) : baseY - height;
-                if (x + bw <= cw && y1 >= 0) {
-                    // 🔥 Gradasi dipadatkan mengikuti tinggi tiang saat ini agar Peak Color selalu muncul
-                    let gradient = ctx.createLinearGradient(0, baseY, 0, y1);
-                    if (cfg.color_mode === 'rainbow') {
-                        gradient.addColorStop(0, 'hsl(0, 100%, 50%)');       // Merah (Bawah)
-                        gradient.addColorStop(0.25, 'hsl(60, 100%, 50%)');   // Kuning
-                        gradient.addColorStop(0.5, 'hsl(120, 100%, 50%)');   // Hijau
-                        gradient.addColorStop(0.75, 'hsl(180, 100%, 50%)');  // Biru Muda (Cyan)
-                        gradient.addColorStop(1, 'hsl(240, 100%, 50%)');     // Biru (Atas)
-                    } else {
-                        gradient.addColorStop(0, cfg.color_bot);
-                        gradient.addColorStop(1, cfg.color_top);
+        effectLayers.forEach(layer => {
+            let val = (layer.intensity !== undefined ? layer.intensity : 50) / 100.0;
+            if (layer.name.includes('Zoom Jedag-Jedug') && isPlaying) {
+                // Gunakan kurva halus tanpa loncatan patah
+                zoomScale += (val * 0.38 * beatPunch); 
+            }
+            if (layer.name.includes('Glitch Beat') && isPlaying && beatPunch > 0.25) {
+                glitchShift += (val * 25 * (beatPunch - 0.25)); 
+            }
+            if (layer.name.includes('Color Boost')) {
+                cbAlpha = val;
+            }
+        });
+
+        const w = cw * zoomScale; 
+        const h = ch * zoomScale;
+        const x = (cw - w) / 2.0; 
+        const y = (ch - h) / 2.0;
+
+        ctx.filter = cbAlpha > 0 ? `saturate(${100 + (cbAlpha * 100)}%) contrast(${100 + (cbAlpha * 15)}%)` : 'none';
+        ctx.drawImage(sourceEl, x, y, w, h);
+        ctx.filter = 'none';
+
+        // Efek Glitch Beat (RGB Split + Horizontal Slice Glitch)
+        if (glitchShift >= 1) {
+            let shift = Math.floor(glitchShift);
+            if (shift > 0 && shift < cw) {
+                try {
+                    let imgData = ctx.getImageData(0, 0, cw, ch);
+                    let data = imgData.data;
+                    let copy = new Uint8ClampedArray(data);
+                    for (let py = 0; py < ch; py++) {
+                        let rowOffset = py * cw;
+                        for (let px = 0; px < cw; px++) {
+                            let i = (rowOffset + px) * 4; 
+                            if (px >= shift) data[i] = copy[(rowOffset + (px - shift)) * 4]; 
+                            if (px < cw - shift) data[i + 2] = copy[(rowOffset + (px + shift)) * 4 + 2]; 
+                        }
                     }
-                    
-                    ctx.shadowColor = cfg.color_mode === 'rainbow' ? 'hsl(180, 100%, 50%)' : cfg.color_top; 
-                    ctx.fillStyle = gradient; 
-                    ctx.fillRect(x, y1, bw, height);
+                    ctx.putImageData(imgData, 0, 0);
+                } catch(e) {
+                    // Fallback jika gambar terkena CORS browser
+                    ctx.save();
+                    ctx.globalAlpha = 0.5 * beatPunch;
+                    ctx.globalCompositeOperation = 'lighter';
+                    ctx.drawImage(sourceEl, x - shift, y, w, h);
+                    ctx.drawImage(sourceEl, x + shift, y, w, h);
+                    ctx.restore();
                 }
             }
-        } else if (cfg.bar_style === 'horizontal') {
-            const totH = ch * (currentWidth / 100);
-            // 🔥 BARU: "lebar" bar horizontal juga mengikuti slider Bar Width
-            const barH = (cfg.bar_width && cfg.bar_width > 0) ? cfg.bar_width
-                : Math.max(2, (totH - (cfg.spacing * (barCount - 1))) / barCount);
-            const startY = centerY - totH / 2;
-            for (let i = 0; i < barCount; i++) {
-                const width = Math.max(2, Math.max(idleH, finalBars[i] * maxBarH));
-                const y = startY + i * (barH + cfg.spacing); const x1 = centerX - width;
-                if (x1 >= 0 && y + barH <= ch) {
-                    const color = getVisualColor(i, barCount);
-                    ctx.shadowColor = color; ctx.fillStyle = color; ctx.fillRect(x1, y, width, barH);
-                    ctx.fillStyle = '#ffffff'; ctx.fillRect(x1, y + barH*0.25, width, barH*0.5);
-                }
-            }
-        } else if (cfg.bar_style === 'led_eq') {
-            const startX = centerX - totW / 2; const baseY = centerY;
-            const segH = 4; const segGap = 2; 
-            const maxSegs = Math.max(1, Math.floor(maxBarH / (segH + segGap)));
+        }
+    }
 
-            for (let i = 0; i < barCount; i++) {
-                const height = Math.max(10, Math.max(idleH, finalBars[i] * maxBarH));
-                const x = startX + i * (barW + cfg.spacing);
+    // 4. RENDER VISUALIZER (BAR BAWAH, RADIAL BAR, WAVEFORM, PARTIKEL BEAT)
+    ctx.lineCap = 'round';
+    function hexToRgbStr(hex) {
+        if (!hex) return '16,185,129';
+        hex = hex.replace('#','');
+        if (hex.length !== 6) return '16,185,129';
+        return `${parseInt(hex.slice(0,2),16)},${parseInt(hex.slice(2,4),16)},${parseInt(hex.slice(4,6),16)}`;
+    }
+
+    effectLayers.forEach(layer => {
+        let intens = (layer.intensity !== undefined ? layer.intensity : 50) / 100.0;
+        const c1 = hexToRgbStr(layer.color1); 
+        const c2 = hexToRgbStr(layer.color2);
+
+        if (layer.name.includes('Visualizer') && !layer.name.includes('Particle')) {
+            const cx = cw * ((layer.pos_x !== undefined ? layer.pos_x : 50) / 100.0);
+            const cy = ch * ((layer.pos_y !== undefined ? layer.pos_y : 85) / 100.0);
+            const numBars = Math.max(10, parseInt(layer.num_bars || 64));
+            let hScale = (layer.height_scale !== undefined ? layer.height_scale : 50) / 50.0;
+            const maxBarH = ch * 0.35 * hScale;
+
+            if (!window['rawState_' + layer.id] || window['rawState_' + layer.id].length !== numBars) {
+                window['rawState_' + layer.id] = new Array(numBars).fill(0);
+            }
+            let barState = window['rawState_' + layer.id];
+
+            for (let i = 0; i < numBars; i++) {
+                let pseudoRand = Math.abs(Math.sin((i + 1) * 12.9898) * 43758.5453) % 1;
+                let sourceIdx = Math.floor(pseudoRand * 60);
+                if (typeof realtimeBars !== 'undefined' && sourceIdx >= realtimeBars.length) {
+                    sourceIdx = realtimeBars.length - 1;
+                }
                 
-                let numSegs = Math.floor(height / (segH + segGap));
-                if (numSegs < 1) numSegs = 1;
+                let rawValue = 0;
+                if (isPlaying && typeof realtimeBars !== 'undefined') {
+                    rawValue = (realtimeBars[sourceIdx] || 0) / 1.6;
+                }
+                
+                let barVar = 0.5 + ((Math.abs(Math.cos((i + 1) * 78.233) * 43758.5453) % 1) * 0.5);
+                rawValue = Math.min(1.0, rawValue * barVar);
 
-                for (let s = 0; s < numSegs; s++) {
-                    const segY = baseY - (s * (segH + segGap));
-                    const color = getVisualColor(s, maxSegs);
-                    
+                let targetHeight = Math.pow(rawValue, 2.5) * 0.85;
+                let curState = isNaN(barState[i]) ? 0 : barState[i];
+                if (targetHeight > curState) {
+                    barState[i] = (curState * 0.25) + (targetHeight * 0.75);
+                } else {
+                    barState[i] = (curState * 0.65) + (targetHeight * 0.35);
+                }
+            }
+
+            // A. BAR BAWAH
+            if (layer.name.includes('Bar Bawah')) {
+                const baseY = cy;
+                const totW = cw * ((layer.size !== undefined ? layer.size : 60) / 100.0);
+                const startX = cx - (totW / 2.0);
+                const slotW = totW / numBars;
+                const rawGap = layer.bar_gap !== undefined ? layer.bar_gap : 3;
+                const space = Math.min(rawGap, Math.max(0, slotW - 1));
+                const maxBarW = Math.max(1, slotW - space);
+                const thickRatio = Math.max(0.05, (layer.thickness !== undefined ? layer.thickness : 30) / 100.0);
+                const barW = Math.max(1, maxBarW * thickRatio);
+                const barOffset = (slotW - barW) / 2.0;
+
+                for (let i = 0; i < numBars; i++) {
+                    let ratio = i / Math.max(1, numBars - 1);
+                    let height = barState[i] * maxBarH;
+                    if (isPlaying) height *= (1.0 + (beatPunch * intens * 0.35));
+                    height = Math.max(2, height);
+
+                    const px = startX + (slotW * i) + barOffset;
+                    const py1 = baseY - height;
+
+                    if (layer.color_mode === 'Dynamic RGB Shift') {
+                        let rainbowColor = `hsl(${((Date.now()/20) + (ratio*360))%360}, 100%, 50%)`;
+                        ctx.shadowColor = rainbowColor; ctx.fillStyle = rainbowColor;
+                    } else if (layer.color_mode === 'Dual-Color Flash') {
+                        let flashColor = (beatPunch > 0.5) ? `rgb(${c1})` : `rgb(${c2})`;
+                        ctx.shadowColor = flashColor; ctx.fillStyle = flashColor;
+                    } else {
+                        let grad = ctx.createLinearGradient(0, baseY, 0, py1);
+                        grad.addColorStop(0, `rgb(${c1})`);
+                        grad.addColorStop(1, `rgb(${c2})`);
+                        ctx.shadowColor = `rgb(${c2})`; ctx.fillStyle = grad;
+                    }
+                    ctx.shadowBlur = 10;
+                    ctx.fillRect(px, py1, barW, height);
+                }
+            }
+            // B. RADIAL BAR
+            // B. RADIAL BAR
+            else if (layer.name.includes('Radial Bar')) {
+                const baseRadius = Math.min(cw, ch) * 0.32 * ((layer.size !== undefined ? layer.size : 60) / 100.0);
+                const pulseR = baseRadius + (isPlaying ? (beatPunch * 12 * intens) : 0);
+                const maxRadialH = maxBarH * 0.65;
+
+                const circumference = 2 * Math.PI * pulseR;
+                const slotArc = circumference / numBars;
+                const rawGap = layer.bar_gap !== undefined ? layer.bar_gap : 3;
+                const space = Math.min(rawGap, Math.max(0, slotArc - 1));
+                const maxBarW = Math.max(1, slotArc - space);
+                const thickRatio = Math.max(0.05, (layer.thickness !== undefined ? layer.thickness : 30) / 100.0);
+                const barW = Math.max(1, maxBarW * thickRatio);
+
+                ctx.save();
+                ctx.lineCap = 'butt';
+                for (let i = 0; i < numBars; i++) {
+                    let ratio = i / Math.max(1, numBars - 1);
+                    let height = barState[i] * maxRadialH;
+                    if (isPlaying) height *= (1.0 + (beatPunch * intens * 0.35));
+                    height = Math.max(2, height);
+
+                    const angle = (i / numBars) * Math.PI * 2 - (Math.PI / 2);
+                    const x1 = cx + Math.cos(angle) * pulseR;
+                    const y1 = cy + Math.sin(angle) * pulseR;
+                    const x2 = cx + Math.cos(angle) * (pulseR + height);
+                    const y2 = cy + Math.sin(angle) * (pulseR + height);
+
+                    if (layer.color_mode === 'Dynamic RGB Shift') {
+                        let rainbowColor = `hsl(${((Date.now()/20) + (ratio*360))%360}, 100%, 50%)`;
+                        ctx.shadowColor = rainbowColor; ctx.strokeStyle = rainbowColor;
+                    } else if (layer.color_mode === 'Dual-Color Flash') {
+                        let flashColor = (beatPunch > 0.5) ? `rgb(${c1})` : `rgb(${c2})`;
+                        ctx.shadowColor = flashColor; ctx.strokeStyle = flashColor;
+                    } else {
+                        let grad = ctx.createLinearGradient(x1, y1, x2, y2);
+                        grad.addColorStop(0, `rgb(${c1})`);
+                        grad.addColorStop(1, `rgb(${c2})`);
+                        ctx.shadowColor = `rgb(${c2})`; ctx.strokeStyle = grad;
+                    }
+                    ctx.shadowBlur = 10;
+                    ctx.lineWidth = barW;
                     ctx.beginPath();
-                    ctx.shadowColor = color; ctx.fillStyle = color;
-                    ctx.fillRect(x, segY - segH, barW, segH);
-                }
-            }
-
-        } else if (cfg.bar_style === 'circle') {
-            ctx.lineCap = 'butt'; 
-            
-            const baseRadius = Math.min(totW, maxBarH) * 0.35;
-            const dynamicRadius = baseRadius * (cfg.enable_logo_pulse ? 1.0 + (Math.min(avgVol_global, 3.0) * 0.15) : 1.0);
-
-            ctx.beginPath(); ctx.arc(centerX, centerY, dynamicRadius, 0, Math.PI * 2);
-            ctx.shadowBlur = cfg.enable_glow ? cfg.glow_intensity : 0;
-            ctx.shadowColor = cfg.color_mode === 'rainbow' ? '#00e5ff' : getVisualColor(barCount/2, barCount);
-            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
-
-            const segH = 6;    
-            const segGap = 4;  
-            const maxSegs = Math.max(1, Math.floor(maxBarH / (segH + segGap)));
-
-            for (let i = 0; i < barCount; i++) {
-                const height = Math.max(15, Math.max(idleH, finalBars[i] * maxBarH));
-                const angle = (i / barCount) * Math.PI * 2 + (Math.PI / 2) + rotationOffset;
-                
-                let numSegs = Math.floor(height / (segH + segGap));
-                if (numSegs < 1) numSegs = 1;
-
-                for (let s = 0; s < numSegs; s++) {
-                    const r1 = dynamicRadius + (s * (segH + segGap));
-                    const r2 = r1 + segH;
-                    
-                    const x1 = centerX + Math.cos(angle) * r1;
-                    const y1 = centerY + Math.sin(angle) * r1;
-                    const x2 = centerX + Math.cos(angle) * r2;
-                    const y2 = centerY + Math.sin(angle) * r2;
-                    
-                    const color = getVisualColor(s, maxSegs);
-                    
-                    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
-                    ctx.shadowColor = color; 
-                    ctx.shadowBlur = cfg.enable_glow ? cfg.glow_intensity : 0;
-                    ctx.strokeStyle = color; 
-                    ctx.lineWidth = Math.max(2, barW * 0.8); 
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
                     ctx.stroke();
                 }
-            }
-            
-            ctx.lineCap = 'round'; 
-            
-            if (typeof centerLogo !== 'undefined' && centerLogo.complete && centerLogo.naturalWidth !== 0) {
-                const logoSize = dynamicRadius * 2;
-                if (logoSize > 0) {
-                    ctx.shadowBlur = 0; ctx.save(); ctx.beginPath(); ctx.arc(centerX, centerY, logoSize / 2, 0, Math.PI * 2); ctx.clip();
-                    ctx.drawImage(centerLogo, centerX - logoSize / 2, centerY - logoSize / 2, logoSize, logoSize);
-                    ctx.restore(); ctx.shadowBlur = cfg.enable_glow ? cfg.glow_intensity : 0;
-                }
-            }
-            
-                                   } else if (cfg.bar_style === 'spectrum_edge') {
-    // ===== SPECTRUM BAR DI SEMUA SISI LAYAR — settingan SAMA dengan 'Naik ke Atas' =====
-    // (color_mode gradient/rainbow, glow, reactivity, spacing, idle_height), cuma posisi fix di pinggir.
-    // Cuma digambar sekali (inst 0) walau mode double, biar nggak dobel nempel.
-    if (inst === 0) {
-        const n = finalBars.length;
-        
-        // PERBAIKAN 1: Batasi max_height maksimal di 45% agar margin/ruang tengah tidak habis dimakan bar
-        const pct = Math.min(45, cfg.max_height) / 100;
-        const maxLenVert = ch * pct;   // panjang maksimal bar atas & bawah
-        const maxLenHoriz = cw * pct;  // panjang maksimal bar kiri & kanan
-        const idleV = Math.min(maxLenVert, cfg.idle_height);
-        const idleH = Math.min(maxLenHoriz, cfg.idle_height);
-        const space = cfg.spacing;
 
-        // PERBAIKAN 2: Buat Margin untuk mencegah tabrakan di sudut (pojokan) layar
-        const marginX = maxLenHoriz;
-        const marginY = maxLenVert;
-        const availW = cw - (2 * marginX);
-        const availH = ch - (2 * marginY);
-
-        // PERBAIKAN 3: Re-arrange array agar high beat (frekuensi rendah/bass) ada di TENGAH
-        const centeredBars = new Array(n).fill(0);
-        const mid = Math.floor(n / 2);
-        for (let i = 0; i < n; i++) {
-            if (i % 2 === 0) {
-                centeredBars[mid + Math.floor(i / 2)] = finalBars[i];
-            } else {
-                centeredBars[mid - Math.floor(i / 2) - 1] = finalBars[i];
-            }
-        }
-
-        ctx.save();
-        ctx.shadowBlur = cfg.enable_glow ? cfg.glow_intensity : 0;
-
-        // ---- ATAS & BAWAH ----
-        // Gunakan availW alih-alih cw agar menggambar di area yang aman dari pinggir
-        // 🔥 BARU: ikuti slider Bar Width kalau diisi
-        const barW = (cfg.bar_width && cfg.bar_width > 0) ? cfg.bar_width
-            : Math.max(1, (availW - space * (n - 1)) / n);
-        for (let i = 0; i < n; i++) {
-            const height = Math.max(2, Math.max(idleV, centeredBars[i] * maxLenVert));
-            
-            // X dimulai dari titik marginX (sudah didorong dari tepi kiri)
-            const x = marginX + i * (barW + space);
-            const color = getVisualColor(i, n);
-            
-            ctx.shadowColor = color; ctx.fillStyle = color;
-            ctx.fillRect(x, ch - height, barW, height); // bawah
-            ctx.fillRect(x, 0, barW, height);            // atas
-            
-            ctx.fillStyle = '#ffffff';
-            const coreW = barW * 0.5, coreOffX = barW * 0.25;
-            ctx.fillRect(x + coreOffX, ch - height, coreW, height);
-            ctx.fillRect(x + coreOffX, 0, coreW, height);
-        }
-
-        // ---- KIRI & KANAN ----
-        // Gunakan availH alih-alih ch agar menggambar di area yang aman dari atas/bawah
-        const barHseg = Math.max(1, (availH - space * (n - 1)) / n);
-        for (let i = 0; i < n; i++) {
-            const length = Math.max(2, Math.max(idleH, centeredBars[i] * maxLenHoriz));
-            
-            // Y dimulai dari titik marginY (sudah didorong dari tepi atas)
-            const y = marginY + i * (barHseg + space);
-            const color = getVisualColor(i, n);
-            
-            ctx.shadowColor = color; ctx.fillStyle = color;
-            ctx.fillRect(0, y, length, barHseg);        // kiri
-            ctx.fillRect(cw - length, y, length, barHseg); // kanan
-            
-            ctx.fillStyle = '#ffffff';
-            const coreH = barHseg * 0.5, coreOffY = barHseg * 0.25;
-            ctx.fillRect(0, y + coreOffY, length, coreH);
-            ctx.fillRect(cw - length, y + coreOffY, length, coreH);
-        }
-        ctx.restore();
-    }
-    } // tutup else-if spectrum_edge
-    } // <-- INI PENUTUP LOOP INSTANCE (SPEAKER KIRI/KANAN)
-    
-    // ==============================================================
-    // ⚠️ PARTIKEL — sinkron dengan logic render final (burst per beat)
-    // ==============================================================
-    ctx.shadowBlur = 0;
-
-    if (window.jsParticles === undefined) window.jsParticles = [];
-    const partAmount = cfg.part_amount || 0;
-
-    // DEBUG SEMENTARA — buka console (F12), lihat vol_rms & isHitNow berubah gimana
-    if (window.__partDbgCounter === undefined) window.__partDbgCounter = 0;
-    window.__partDbgCounter++;
-    if (window.__partDbgCounter % 20 === 0) {
-        console.log('[particle debug]', { vol_rms, isHitNow, partAmount, aliveCount: window.jsParticles.length });
-    }
-
-    if (partAmount > 0) {
-        const partSizeMult = cfg.part_size || 1.0;
-        const partColorMode = cfg.part_color_mode || 'solid';
-        const partEffect = cfg.part_effect || 'circle';
-        const partOpacity = Math.max(0, Math.min(1, (cfg.part_opacity !== undefined ? cfg.part_opacity : 100) / 100));
-
-        // ---- Spawn burst baru kalau ada hit & volume cukup kencang ----
-        if (isHitNow && vol_rms > 1.0) {
-            for (let i = 0; i < Math.min(partAmount, 60); i++) {
-                let color;
-                if (partColorMode === 'rgb') {
-                    color = `hsl(${Math.floor(Math.random() * 360)}, 100%, 60%)`;
-                } else {
-                    color = cfg.color_part || '#ffffff';
-                }
-                window.jsParticles.push({
-                    x: Math.random() * cw, y: Math.random() * ch,
-                    vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6,
-                    size: (2 + Math.random() * 4) * partSizeMult,
-                    color
-                });
-            }
-        }
-
-        // ---- Update & gambar (gerak, mengecil, mati kalau size habis) ----
-        const speed = 1.0 + (vol_rms * 0.1 * (cfg.part_speed || 1.0));
-        ctx.save();
-        const alive = [];
-        for (const p of window.jsParticles) {
-            p.x += p.vx * speed; p.y += p.vy * speed; p.size -= 0.1;
-            if (p.size > 0) {
-                ctx.fillStyle = p.color;
-                if (partEffect === 'spark') {
-                    ctx.globalAlpha = partOpacity;
+                // 🔥 GAMBAR FOTO PROFIL CHANNEL DI TENGAH RADIAL BAR
+                const innerR = Math.max(4, pulseR - 3);
+                if (layer.use_logo !== false && centerLogo && centerLogo.complete && centerLogo.naturalWidth > 0) {
+                    ctx.save();
+                    ctx.shadowBlur = 0;
                     ctx.beginPath();
-                    ctx.moveTo(p.x, p.y - p.size);
-                    ctx.lineTo(p.x + p.size, p.y);
-                    ctx.lineTo(p.x, p.y + p.size);
-                    ctx.lineTo(p.x - p.size, p.y);
+                    ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
                     ctx.closePath();
-                    ctx.fill();
-                } else if (partEffect === 'glow') {
-                    ctx.globalAlpha = partOpacity * 0.35;
-                    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * 1.8, 0, Math.PI * 2); ctx.fill();
-                    ctx.globalAlpha = partOpacity * 0.7;
-                    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * 1.1, 0, Math.PI * 2); ctx.fill();
-                    ctx.globalAlpha = partOpacity;
-                    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
-                } else {
-                    ctx.globalAlpha = partOpacity;
-                    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+                    ctx.clip();
+                    ctx.drawImage(centerLogo, cx - innerR, cy - innerR, innerR * 2, innerR * 2);
+                    ctx.restore();
                 }
+
+                // Cincin bingkai (border) menyala mengelilingi foto profil
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = `rgb(${c1})`;
+                ctx.strokeStyle = `rgb(${c1})`;
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            }
+            // C. WAVEFORM GARIS
+            else if (layer.name.includes('Waveform')) {
+                const totW = cw * ((layer.size !== undefined ? layer.size : 60) / 100.0);
+                const startX = cx - (totW / 2.0);
+                const slotW = totW / Math.max(1, numBars - 1);
+                const lineW = Math.max(1.5, ((layer.thickness !== undefined ? layer.thickness : 30) / 100.0) * 12.0);
+
+                let maxPeak = 2;
+                const pts = [];
+                for (let i = 0; i < numBars; i++) {
+                    let height = barState[i] * maxBarH;
+                    if (isPlaying) height *= (1.0 + (beatPunch * intens * 0.35));
+                    height = Math.max(2, height);
+                    if (height > maxPeak) maxPeak = height;
+                    pts.push({ x: startX + slotW * i, y: cy - height });
+                }
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(startX, cy);
+                pts.forEach(p => ctx.lineTo(p.x, p.y));
+                ctx.lineTo(startX + totW, cy);
+                ctx.closePath();
+
+                let fillGrad = ctx.createLinearGradient(0, cy, 0, cy - maxPeak);
+                fillGrad.addColorStop(0, `rgba(${c1}, 0.05)`);
+                fillGrad.addColorStop(1, `rgba(${c2}, 0.45)`);
+                ctx.fillStyle = fillGrad;
+                ctx.fill();
+
+                ctx.beginPath();
+                pts.forEach((p, idx) => {
+                    if (idx === 0) ctx.moveTo(p.x, p.y);
+                    else ctx.lineTo(p.x, p.y);
+                });
+
+                if (layer.color_mode === 'Dynamic RGB Shift') {
+                    let rainbowGrad = ctx.createLinearGradient(startX, 0, startX + totW, 0);
+                    for (let s = 0; s <= 1; s += 0.2) {
+                        rainbowGrad.addColorStop(s, `hsl(${((Date.now()/20) + s*360)%360}, 100%, 50%)`);
+                    }
+                    ctx.strokeStyle = rainbowGrad;
+                    ctx.shadowColor = `hsl(${(Date.now()/20)%360}, 100%, 50%)`;
+                } else if (layer.color_mode === 'Dual-Color Flash') {
+                    let flashColor = (beatPunch > 0.5) ? `rgb(${c1})` : `rgb(${c2})`;
+                    ctx.strokeStyle = flashColor; ctx.shadowColor = flashColor;
+                } else {
+                    let strokeGrad = ctx.createLinearGradient(0, cy, 0, cy - maxPeak);
+                    strokeGrad.addColorStop(0, `rgb(${c1})`);
+                    strokeGrad.addColorStop(1, `rgb(${c2})`);
+                    ctx.strokeStyle = strokeGrad; ctx.shadowColor = `rgb(${c2})`;
+                }
+                ctx.shadowBlur = 12;
+                ctx.lineWidth = lineW;
+                ctx.lineJoin = 'round';
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+        // D. PARTIKEL BARU: FREE-FLOWING 360° & RANDOM BEAT POP (Bebas Error/Stuck, Bukan Bawah ke Atas)
+        // D. PARTIKEL: MELAYANG STABIL (FLOWING) & BELOK ARAH ACAK SAAT BEAT (TANPA NGEBUT)
+        else if (layer.name.includes('Particle')) {
+            if (!window.layerParticleStates) window.layerParticleStates = {};
+            if (!window.layerParticleStates[layer.id]) window.layerParticleStates[layer.id] = [];
+            let pArray = window.layerParticleStates[layer.id];
+
+            const nowSec = Date.now() / 1000.0;
+            const targetCount = Math.max(10, parseInt(layer.part_count || 60));
+            const sizeScale = (layer.size !== undefined ? layer.size : 50) / 50.0;
+            // Kecepatan melayang konstan (murni dari slider Flow, tidak dikali beatPunch)
+            const flowSpeed = Math.max(0.15, (layer.flow_speed !== undefined ? layer.flow_speed : 40) / 40.0);
+            const pStyle = layer.part_style || 'flow_beat';
+
+            function createFloatingParticle(isBeatSpawn = false) {
+                const initAngle = Math.random() * Math.PI * 2;
+                return {
+                    x: Math.random() * cw,
+                    y: Math.random() * ch,
+                    angle: initAngle,
+                    targetAngle: initAngle,
+                    baseSpeed: (0.4 + Math.random() * 0.8),
+                    wobbleFreq: 0.5 + Math.random() * 1.2,
+                    wobbleAmp: 0.25 + Math.random() * 0.6,
+                    phase: Math.random() * Math.PI * 2,
+                    baseSize: (1.8 + Math.random() * 3.5) * sizeScale,
+                    ratio: Math.random(),
+                    life: isBeatSpawn ? 0.05 : (0.2 + Math.random() * 0.8),
+                    fadeIn: isBeatSpawn,
+                    decay: 0.008 + Math.random() * 0.012
+                };
+            }
+
+            // Deteksi ketukan baru khusus untuk memicu belokan arah acak (cooldown 0.18 detik)
+            const lastRedirectKey = 'lastRedirect_' + layer.id;
+            if (!window[lastRedirectKey]) window[lastRedirectKey] = 0;
+            let isBeatTrigger = false;
+            if (isPlaying && beatPunch > 0.38 && (nowSec - window[lastRedirectKey] > 0.18)) {
+                isBeatTrigger = true;
+                window[lastRedirectKey] = nowSec;
+            }
+
+            if (pStyle === 'flow_beat') {
+                // Jaga jumlah partikel tetap sesuai slider
+                while (pArray.length < targetCount) {
+                    pArray.push(createFloatingParticle(false));
+                }
+                if (pArray.length > targetCount) {
+                    pArray.length = targetCount;
+                }
+
+                // 🔥 SAAT ADA BEAT: Ubah arah melayang secara acak (Kecepatan tetap tenang/stabil!)
+                if (isBeatTrigger) {
+                    for (let i = 0; i < pArray.length; i++) {
+                        // Slider intensity mengatur seberapa tajam/banyak partikel yang berbelok acak
+                        if (Math.random() <= (0.3 + intens * 0.7)) {
+                            const turnRange = (0.4 + intens * 0.8) * Math.PI * 2;
+                            pArray[i].targetAngle += (Math.random() - 0.5) * turnRange;
+                        }
+                    }
+                }
+            } else {
+                // Mode Muncul Acak Saat Beat: Muncul di posisi acak saat beat & melayang santai
+                while (pArray.length < Math.floor(targetCount * 0.2)) {
+                    pArray.push(createFloatingParticle(false));
+                }
+                if (isBeatTrigger && pArray.length < targetCount + 20) {
+                    const spawnCount = Math.max(2, Math.ceil(targetCount * 0.15 * intens));
+                    for (let s = 0; s < spawnCount; s++) {
+                        pArray.push(createFloatingParticle(true));
+                    }
+                }
+            }
+
+            const alive = [];
+            ctx.save();
+
+            for (let i = 0; i < pArray.length; i++) {
+                const p = pArray[i];
+
+                // Belokkan sudut secara mulus (smooth steering) menuju targetAngle baru
+                p.angle += (p.targetAngle - p.angle) * 0.12;
+
+                // Tambahan alunan melayang halus (floating wave)
+                const driftAngle = p.angle + Math.sin(nowSec * p.wobbleFreq + p.phase) * p.wobbleAmp;
+                const moveStep = p.baseSpeed * flowSpeed;
+
+                // Gerak dengan kecepatan konstan (tidak dipercepat oleh beat)
+                p.x += Math.cos(driftAngle) * moveStep;
+                p.y += Math.sin(driftAngle) * moveStep;
+
+                if (pStyle === 'beat_spawn') {
+                    if (p.fadeIn) {
+                        p.life += 0.08;
+                        if (p.life >= 1.0) { p.life = 1.0; p.fadeIn = false; }
+                    } else {
+                        p.life -= p.decay;
+                    }
+                    if (p.life <= 0.02) continue;
+                } else {
+                    p.life = 0.75 + 0.25 * Math.sin(nowSec * 1.5 + p.phase);
+                }
+
+                // Tembus batas layar dengan mulus
+                if (p.x < -15) p.x = cw + 12;
+                else if (p.x > cw + 15) p.x = -12;
+                if (p.y < -15) p.y = ch + 12;
+                else if (p.y > ch + 15) p.y = -12;
+
+                const alpha = Math.max(0.1, Math.min(1.0, p.life * (0.65 + (isPlaying ? beatPunch * 0.35 : 0))));
+                let drawColor = `rgba(${c2}, ${alpha})`;
+                if (layer.color_mode === 'Dynamic RGB Shift') {
+                    drawColor = `hsla(${((Date.now()/20) + p.ratio*360)%360}, 100%, 60%, ${alpha})`;
+                } else if (layer.color_mode === 'Dual-Color Flash') {
+                    drawColor = (beatPunch > 0.4) ? `rgba(${c1}, ${alpha})` : `rgba(${c2}, ${alpha})`;
+                } else {
+                    const c1Arr = c1.split(',').map(Number);
+                    const c2Arr = c2.split(',').map(Number);
+                    const r = Math.round(c1Arr[0] + (c2Arr[0] - c1Arr[0]) * p.ratio);
+                    const g = Math.round(c1Arr[1] + (c2Arr[1] - c1Arr[1]) * p.ratio);
+                    const b = Math.round(c1Arr[2] + (c2Arr[2] - c1Arr[2]) * p.ratio);
+                    drawColor = `rgba(${r},${g},${b},${alpha})`;
+                }
+
+                const curSize = Math.max(1, p.baseSize * (1.0 + (isPlaying ? beatPunch * 0.25 : 0)));
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = drawColor;
+                ctx.fillStyle = drawColor;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, curSize, 0, Math.PI * 2);
+                ctx.fill();
                 alive.push(p);
             }
+            ctx.restore();
+            window.layerParticleStates[layer.id] = alive;
         }
-        window.jsParticles = alive;
-        ctx.restore();
+    });
+    // 5. GLASSY FLOATING CARD DI LIVE PREVIEW
+    const showCard = document.getElementById('bc-use-floating-card')?.checked;
+    if (showCard) {
+        const cardMode = document.getElementById('bc-floating-card-mode')?.value || 'intro_5s';
+        let trackElapsed = 0;
+        if (isPlaying) {
+            if (previewAudioElement && !previewAudioElement.paused) trackElapsed = previewAudioElement.currentTime;
+            else if (bgVid && !bgVid.paused) trackElapsed = bgVid.currentTime;
+        }
+
+        let cardAlpha = 1.0;
+        let slideOffset = 0;
+        if (cardMode === 'intro_5s' && isPlaying) {
+            if (trackElapsed > 5.5) {
+                cardAlpha = 0.0;
+            } else if (trackElapsed < 0.7) {
+                cardAlpha = trackElapsed / 0.7;
+                slideOffset = (1.0 - cardAlpha) * -25;
+            } else if (trackElapsed > 4.5) {
+                cardAlpha = Math.max(0.0, 1.0 - ((trackElapsed - 4.5) / 1.0));
+                slideOffset = (1.0 - cardAlpha) * -15;
+            }
+        }
+
+        if (cardAlpha > 0.02) {
+            const selAudio = document.getElementById('preview-audio-select');
+            let rawName = (selAudio && selAudio.selectedIndex > 0) ? selAudio.options[selAudio.selectedIndex].text : 'Sample Track Preview';
+            
+            // 🔥 SAPU BERSIH EMOJI, [CID]/[Non-CID], NOMOR URUT (06.), DAN EKSTENSI FILE
+            rawName = rawName
+                .replace(/^(?:🎵|⚠️|🎬)\s*/u, '')          // Hapus emoji di depan
+                .replace(/\[.*?\]|\(.*?\)/g, '')           // Hapus [CID], [Non-CID], atau teks dalam kurung
+                .replace(/\.(mp3|wav|mp4|mov|webm|mkv)$/i, '') // Hapus ekstensi file
+                .trim()
+                .replace(/^\d+[\.\)\-\s_]+/, '')           // Hapus nomor urut seperti "06. " atau "01 - "
+                .trim() || 'Track Playing';
+
+            ctx.save();
+            ctx.globalAlpha = cardAlpha;
+            ctx.font = '600 12px "Clash Display", sans-serif';
+            const titleW = ctx.measureText(rawName).width;
+            const cardX = 22 + slideOffset;
+            const cardY = 20;
+            const cardW = Math.max(175, titleW + 68);
+            const cardH = 44;
+            const rad = 12;
+
+            // Kotak Kaca Transparan (Glassmorphism Pill)
+            ctx.beginPath();
+            ctx.roundRect(cardX, cardY, cardW, cardH, rad);
+            const glassGrad = ctx.createLinearGradient(cardX, cardY, cardX + cardW, cardY + cardH);
+            glassGrad.addColorStop(0, 'rgba(15, 23, 38, 0.58)');
+            glassGrad.addColorStop(1, 'rgba(10, 15, 25, 0.32)');
+            ctx.fillStyle = glassGrad;
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+            ctx.shadowBlur = 14;
+            ctx.fill();
+
+            // Border Kaca Mengilap Tipis
+            ctx.shadowBlur = 0;
+            ctx.lineWidth = 1;
+            const borderGrad = ctx.createLinearGradient(cardX, cardY, cardX + cardW, cardY + cardH);
+            borderGrad.addColorStop(0, 'rgba(255, 255, 255, 0.32)');
+            borderGrad.addColorStop(0.5, 'rgba(0, 212, 255, 0.20)');
+            borderGrad.addColorStop(1, 'rgba(255, 255, 255, 0.08)');
+            ctx.strokeStyle = borderGrad;
+            ctx.stroke();
+
+            // Aksen Mini-Equalizer di Kiri Kartu (Bergerak ikut Beat)
+            const eqBaseX = cardX + 16;
+            const eqBaseY = cardY + 31;
+            for (let b = 0; b < 3; b++) {
+                const bh = isPlaying ? (5 + ((b === 1 ? beatPunch : (beatPunch * 0.7)) * 14) + Math.sin(Date.now()/120 + b)*2) : 6;
+                ctx.fillStyle = '#00d4ff';
+                ctx.beginPath();
+                ctx.roundRect(eqBaseX + b * 6, eqBaseY - bh, 3.5, bh, 2);
+                ctx.fill();
+            }
+
+            // Label "NOW PLAYING" & Judul Lagu
+            ctx.fillStyle = 'rgba(0, 212, 255, 0.9)';
+            ctx.font = '500 8px "DM Mono", monospace';
+            ctx.fillText('NOW PLAYING', cardX + 42, cardY + 17);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            ctx.font = '600 12px "Clash Display", sans-serif';
+            ctx.fillText(rawName, cardX + 42, cardY + 33);
+            ctx.restore();
+        }
     }
-    timeTick++;
+
     requestAnimationFrame(drawLivePreview);
 }
-
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(function() {
-        const container = document.getElementById('preview-container');
-        const canvas = document.getElementById('preset_canvas');
-        if (container && canvas) {
-            const rect = container.getBoundingClientRect();
-            canvas.width = rect.width || 640; canvas.height = rect.height || 360;
-        }
-    }, 500);
-});
-
-window.addEventListener('resize', function() {
-    const container = document.getElementById('preview-container');
-    const canvas = document.getElementById('preset_canvas');
-    if (container && canvas) {
-        const rect = container.getBoundingClientRect();
-        canvas.width = rect.width || 640; canvas.height = rect.height || 360;
-    }
-});
 
 // ────────────────────────────────────────────────────────
 //  TASK MONITOR (WITH COLLAPSE & PAGINATION)
@@ -3202,26 +3333,39 @@ let previewAnalyserNode = null; let isPreviewPlaying = false;
 let realtimeBars = new Array(64).fill(0);
 
 async function loadPreviewAudioList() {
-    const yt_id = document.getElementById('bc-channel').value; const select = document.getElementById('preview-audio-select');
+    const yt_id = document.getElementById('bc-channel').value; 
+    const select = document.getElementById('preview-audio-select');
     if (!yt_id) { select.innerHTML = '<option value="">-- Pilih channel dulu --</option>'; return; }
 
-    // 🔥 BARU: sumber list preview mengikuti Jalur Render Engine yang aktif.
-    // Mode Video Utuh (single_video) pakai folder base_videos (audio diekstrak dari video, tapi
-    // browser bisa memutar MP4 langsung — elemen <video> tetap bisa di-feed ke WebAudio API).
     const mode = document.getElementById('bc-source-mode')?.value || 'mix';
     try {
-        const res = await fetch(`/api/get_gallery?yt_id=${yt_id}`); const data = await res.json();
-        let items = [], folder = '', extLabel = '';
+        const res = await fetch(`/api/get_gallery?yt_id=${yt_id}`); 
+        const data = await res.json();
+        
+        let htmlOptions = '<option value="">-- Pilih audio preview --</option>';
+        let totalItems = 0;
+
         if (mode === 'single_video') {
-            items = data.base_video || [];
-            folder = 'base_videos'; extLabel = ' 🎬 (Video sumber)';
+            const items = data.base_video || [];
+            totalItems = items.length;
+            htmlOptions += items.map(a => `<option value="/uploads/${yt_id}/base_videos/${encodeURIComponent(a.name)}">🎬 ${a.name}</option>`).join('');
         } else {
-            items = data.audio || [];
-            folder = 'audios'; extLabel = ' 🎵 (MP3)';
+            // Ambil data dari 2 folder terpisah
+            const nonCid = data.audio_non_cid || [];
+            const cid = data.audio_cid || [];
+            totalItems = nonCid.length + cid.length;
+            
+            // Masukkan ke dropdown dengan path folder yang sesuai
+            htmlOptions += nonCid.map(a => `<option value="/uploads/${yt_id}/audio_non_cid/${encodeURIComponent(a.name)}">🎵 [Non-CID] ${a.name}</option>`).join('');
+            htmlOptions += cid.map(a => `<option value="/uploads/${yt_id}/audio_cid/${encodeURIComponent(a.name)}">⚠️ [CID] ${a.name}</option>`).join('');
         }
-        if (!items.length) { select.innerHTML = `<option value="">-- Tidak ada audio di gallery${mode === 'single_video' ? ' (folder Video+Audio kosong)' : ''} --</option>`; return; }
-        select.innerHTML = '<option value="">-- Pilih audio preview --</option>' + 
-            items.map(a => `<option value="/uploads/${yt_id}/${folder}/${encodeURIComponent(a.name)}">${a.name}${extLabel}</option>`).join('');
+
+        if (totalItems === 0) { 
+            select.innerHTML = `<option value="">-- Tidak ada audio di gallery${mode === 'single_video' ? ' (folder Video+Audio kosong)' : ''} --</option>`; 
+            return; 
+        }
+        
+        select.innerHTML = htmlOptions;
     } catch(e) { console.error(e); }
 }
 
@@ -3260,7 +3404,7 @@ async function startAudioPreview() {
                 bgVid.__vidSourceNode = previewAudioContext.createMediaElementSource(bgVid);
                 bgVid.__vidAnalyser = previewAudioContext.createAnalyser();
                 bgVid.__vidAnalyser.fftSize = 1024;
-                bgVid.__vidAnalyser.smoothingTimeConstant = 0.8;
+                bgVid.__vidAnalyser.smoothingTimeConstant = 0.25;
                 bgVid.__vidSourceNode.connect(bgVid.__vidAnalyser);
                 bgVid.__vidAnalyser.connect(previewAudioContext.destination);
             }
@@ -3273,7 +3417,7 @@ async function startAudioPreview() {
             previewAnalyserNode = previewAudioContext.createAnalyser();
         }
         if (!isVideoSource) {
-            previewAnalyserNode.fftSize = 1024; previewAnalyserNode.smoothingTimeConstant = 0.8;
+            previewAnalyserNode.fftSize = 1024; previewAnalyserNode.smoothingTimeConstant = 0.25;
             previewSourceNode.connect(previewAnalyserNode); previewAnalyserNode.connect(previewAudioContext.destination);
         }
         await previewAudioContext.resume();
@@ -3328,10 +3472,13 @@ function stopAudioPreview() {
 //  CORE SYSTEM INIT
 // ────────────────────────────────────────────────────────
 function init() {
+  setTimeout(initCanvas, 100);
   loadChannels(); 
   updateCenterLogo(); 
   fetchAnalytics(); 
   checkApiStatus();
+  initCanvas();
+  renderEffectLayers();
   fetch('/api/get_presets').then(r => r.json()).then(d => {
       if (d && typeof d === 'object' && !Array.isArray(d)) { visPresets = d; } else { visPresets = {}; }
       localStorage.setItem('wp_presets', JSON.stringify(visPresets)); refreshVisPresetList();
@@ -3348,6 +3495,13 @@ function init() {
   
   fetchNotifs();
   drawLivePreview();
+
+  // 🔥 BACA TARGET TAB DARI KEIBOT HUB (?tab=batch / ?tab=tasks / ?tab=dashboard)
+  const urlParams = new URLSearchParams(window.location.search);
+  const targetTab = urlParams.get('tab');
+  if (targetTab && ['dashboard', 'tasks', 'batch'].includes(targetTab)) {
+      go(targetTab);
+  }
 }
 document.addEventListener("DOMContentLoaded", init);
 function onVisStepOpened() { loadPreviewAudioList(); }

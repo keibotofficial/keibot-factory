@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings — KeiBot Hub</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Clash+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#05080d; --surface:#090d14; --card2:#0d1520; --border:#162030; --border2:#1e2e42;
+    --accent:#00d4ff; --accent2:#ff4d6d; --green:#00e887; --text:#c8daea; --text2:#7a9ab8; --muted:#3a5470;
+    --font-d:'Clash Display', sans-serif; --font-m:'DM Mono', monospace;
+  }
+  body { background-color: #05080d; color: #ffffff; font-family: var(--font-d); }
+  .topbar { padding:12px 26px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:14px; background:rgba(9,13,20,.9); backdrop-filter:blur(10px); }
+  .tb-title { font-size:22px; font-weight:700; color:var(--text); letter-spacing:-.01em; }
+  .tb-title .accent { color:var(--accent); }
+  .tb-sub { font-family:var(--font-m); font-size:11px; color:var(--text2); margin-top:2px; }
+  .tb-right { margin-left:auto; display:flex; align-items:center; gap:10px; }
+  .btn-g { background:transparent; color:var(--text2); border:1px solid var(--border2); border-radius:8px; font-family:var(--font-d); font-size:11px; font-weight:700; cursor:pointer; transition:.15s; text-decoration:none; display:flex; align-items:center; gap:6px; padding:6px 12px; }
+  .btn-g:hover { border-color:var(--accent); color:var(--accent); }
+  .sys-monitor { display:flex; gap:12px; background:var(--card2); border:1px solid var(--border); border-radius:8px; padding:6px 14px; font-family:var(--font-m); }
+  .sm-item { display:flex; flex-direction:column; }
+  .sm-lbl { font-size:8px; color:var(--muted); letter-spacing:.1em; margin-bottom:1px; }
+  .sm-val { font-size:12px; font-weight:700; }
+  .tab-btn { transition: all .15s; }
+  .tab-btn.active { border-color: #00e5ff; color: #00e5ff; background: rgba(0,229,255,.08); }
+  .tab-btn:not(.active):hover { color: #cbd5e1; border-color: #374151; }
+  .card { background: #0d1520; border: 1px solid #1f2937; border-radius: 12px; }
+  .btn-primary { background: #00e5ff; color: #05080d; font-weight: 700; }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-ghost { background: transparent; border: 1px solid #374151; color: #9ca3af; }
+  .btn-ghost:hover { border-color: #00e5ff; color: #00e5ff; }
+  .btn-danger { background: transparent; border: 1px solid #7f1d2b; color: #ff8ba0; }
+  .btn-danger:hover { background: rgba(255,77,109,.1); }
+  .pill { font-size: 10px; padding: 2px 8px; border-radius: 999px; font-family: monospace; letter-spacing: .05em; }
+  .pill-green { background: rgba(0,232,135,.12); color: #00e887; border: 1px solid rgba(0,232,135,.25); }
+  .pill-muted { background: rgba(255,255,255,.05); color: #6b7280; border: 1px solid #374151; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <div class="tb-title">Keibot <span class="accent">Settings</span></div>
+    <div class="tb-sub">Resource Global — Channel, Asset Gallery 16:9 / 9:16 &amp; Koneksi Platform</div>
+  </div>
+  <div class="tb-right">
+    <a href="/hub" class="btn-g"><span style="font-size:14px;">🏠</span> Hub</a>
+    <div class="sys-monitor">
+      <div class="sm-item"><span class="sm-lbl">CPU</span><span class="sm-val" id="sys-cpu" style="color:var(--accent)">–%</span></div>
+      <div style="width:1px;height:22px;background:var(--border)"></div>
+      <div class="sm-item"><span class="sm-lbl">RAM</span><span class="sm-val" id="sys-ram" style="color:var(--green)">–%</span></div>
+      <div class="sm-item"><span style="font-family:var(--font-m);font-size:9px;color:var(--muted)" id="sys-ram-txt">–/–GB</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-5xl mx-auto p-6">
+
+  <!-- TABS -->
+  <div class="flex gap-2 mb-6 border-b border-[#162030] pb-2 flex-wrap">
+    <button class="tab-btn active px-4 py-2 rounded-lg border border-[#162030] text-sm font-semibold" data-tab="youtube" onclick="switchTab('youtube')">▶ YouTube</button>
+    <button class="tab-btn px-4 py-2 rounded-lg border border-[#162030] text-sm font-semibold" data-tab="facebook" onclick="switchTab('facebook')">f Facebook</button>
+    <button class="tab-btn px-4 py-2 rounded-lg border border-[#162030] text-sm font-semibold" data-tab="gallery" onclick="switchTab('gallery')">🗂 Asset Gallery</button>
+    <button class="tab-btn px-4 py-2 rounded-lg border border-[#162030] text-sm font-semibold" data-tab="titles" onclick="switchTab('titles')">✦ Title Generator</button>
+    <button class="tab-btn px-4 py-2 rounded-lg border border-[#162030] text-sm font-semibold" data-tab="system" onclick="switchTab('system')">🛠 System</button>
+  </div>
+
+  <!-- ============ TAB: YOUTUBE ============ -->
+  <div id="tab-youtube" class="tab-panel">
+    
+    <!-- API KEY GOOGLE -->
+    <div class="card p-6 mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-sm text-[#c8daea]">🔑 GOOGLE OAUTH 2.0 API</h3>
+        <span id="api-badge" class="pill pill-muted">Mengecek...</span>
+      </div>
+      <p class="text-xs text-[#7a9ab8] mb-4">Upload <b class="text-[#c8daea]">client_secret.json</b> (Tipe: TVs and Limited Input Devices) untuk menghubungkan channel.</p>
+      <form id="api-form" class="flex gap-3 items-center">
+        <input type="file" name="secret_file" accept=".json" required class="flex-1 bg-[#0d1520] border border-[#162030] rounded-lg text-sm px-3 py-2 text-[#c8daea]">
+        <button type="button" class="btn-primary text-xs px-4 py-2 rounded-lg" onclick="uploadSecret()">UPLOAD API KEY</button>
+      </form>
+    </div>
+
+    <!-- KONTROL CHANNEL -->
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <h2 class="text-lg font-bold">◉ Connected Channels</h2>
+      <div class="flex gap-2 items-center">
+        <button class="text-xs px-3 py-2 rounded-lg font-bold text-white transition-all" style="background-color: #2563eb; border: 1px solid #1d4ed8;" onclick="exportChannels()">📤 Export</button>
+        <button class="text-xs px-3 py-2 rounded-lg font-bold text-white transition-all" style="background-color: #d97706; border: 1px solid #b45309;" onclick="document.getElementById('importFile').click()">📥 Import</button>
+        <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importChannels(event)">
+        <button class="btn-primary text-xs px-4 py-2 rounded-lg" onclick="generateTVLink()">＋ Tautkan Channel Baru</button>
+      </div>
+    </div>
+
+    <!-- TV BOX -->
+    <div id="tv-box" style="display:none;background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.2);border-radius:12px;padding:16px;margin-bottom:16px">
+      <div style="font-family:var(--font-m);font-size:11px;color:var(--accent);margin-bottom:6px" id="tv-msg">Copy link ini di profil Chrome channel YouTube target:</div>
+      <div class="flex flex-col sm:flex-row gap-3">
+        <input type="text" id="tv-url" readonly class="flex-1 font-bold bg-[#0d1520] border border-[#162030] rounded-lg text-sm px-3 py-2 text-[#c8daea] outline-none">
+        <button class="btn-primary text-xs px-6 py-2 rounded-lg" onclick="copyTvUrl()">COPY</button>
+      </div>
+    </div>
+
+    <!-- LIST CHANNEL -->
+    <div id="yt-channel-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <p class="text-[#7a9ab8] text-sm">Memuat channel...</p>
+    </div>
+  </div>
+
+  <!-- ============ TAB: FACEBOOK ============ -->
+  <div id="tab-facebook" class="tab-panel hidden">
+    
+    <!-- HEADER -->
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <h2 class="text-lg font-bold">◉ Connected Pages</h2>
+      <button class="btn-primary text-xs px-4 py-2 rounded-lg" onclick="toggleFbForm()">＋ Tautkan Page Baru</button>
+    </div>
+
+    <!-- FORM TAMBAH PAGE (Tersembunyi secara default) -->
+    <div id="fb-form-box" class="card p-6 mb-6 hidden">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-sm text-[#c8daea]">🔑 META GRAPH API / ACCESS TOKEN</h3>
+        <button class="text-[#ff8ba0] hover:text-[#ff4d6d] text-xs font-bold" onclick="toggleFbForm()">✕ Tutup</button>
+      </div>
+      
+      <p class="text-xs text-[#7a9ab8] mb-4">Masukkan Page ID dan Access Token permanen Anda. Sistem akan <b>otomatis menarik Nama Fanpage</b> Anda dari server Meta.</p>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="block text-xs text-[#7a9ab8] mb-1">Facebook Page ID</label>
+          <input type="text" id="fb-page-id" placeholder="Contoh: 1029384756..." class="w-full bg-[#090d14] border border-[#162030] rounded-lg text-sm px-3 py-2 text-[#c8daea] outline-none">
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs text-[#7a9ab8] mb-1">Page Access Token (Permanent / Long-Lived)</label>
+          <textarea id="fb-access-token" rows="2" placeholder="EAAG..." class="w-full bg-[#090d14] border border-[#162030] rounded-lg text-sm px-3 py-2 text-[#c8daea] font-mono outline-none"></textarea>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <button type="button" class="btn-primary text-xs px-4 py-2 rounded-lg" onclick="saveFacebookConfig(event)">💾 Simpan & Hubungkan</button>
+      </div>
+    </div>
+
+    <!-- LIST PAGE KARTU -->
+    <div id="fb-page-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <p class="text-[#7a9ab8] text-sm">Memuat daftar Page...</p>
+    </div>
+  </div>
+
+  <!-- ============ TAB: ASSET GALLERY ============ -->
+  <div id="tab-gallery" class="tab-panel hidden">
+    <div class="flex items-center gap-3 mb-4">
+      <h2 class="text-lg font-bold">Asset Gallery</h2>
+      <select id="gallery-channel-select" class="bg-[#0d1520] border border-[#162030] rounded-lg text-sm px-3 py-2 text-gray-300" onchange="loadGallery()">
+        <option value="">-- Pilih channel --</option>
+      </select>
+    </div>
+
+    <div id="gallery-empty-hint" class="text-[#7a9ab8] text-sm mb-4">Pilih channel di atas untuk melihat dan mengunggah asset-nya.</div>
+
+    <div id="gallery-content" class="hidden space-y-6">
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div class="card p-3 text-center">
+          <p class="text-[10px] text-[#7a9ab8]">Audio (Non-CID)</p>
+          <p class="text-xl font-bold text-[#00e5ff]" id="count-audio-non">-</p>
+        </div>
+        <div class="card p-3 text-center">
+          <p class="text-[10px] text-[#7a9ab8]">Audio (CID)</p>
+          <p class="text-xl font-bold text-[#ff4d6d]" id="count-audio-cid">-</p>
+        </div>
+        <div class="card p-3 text-center">
+          <p class="text-[10px] text-[#7a9ab8]">BG Factory (16:9)</p>
+          <p class="text-xl font-bold text-[#00e887]" id="count-background">-</p>
+        </div>
+        <div class="card p-3 text-center border-[#ffb703]/40">
+          <p class="text-[10px] text-[#ffb703]">BG Shorts (9:16)</p>
+          <p class="text-xl font-bold text-[#ffb703]" id="count-shorts_bg">-</p>
+        </div>
+        <div class="card p-3 text-center">
+          <p class="text-[10px] text-[#7a9ab8]">Thumbnail YT</p>
+          <p class="text-xl font-bold" id="count-thumbnails">-</p>
+        </div>
+        <div class="card p-3 text-center">
+          <p class="text-[10px] text-[#7a9ab8]">Video+Audio</p>
+          <p class="text-xl font-bold" id="count-base_video">-</p>
+        </div>
+      </div>
+
+      <div id="gallery-sections"></div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: TITLE GENERATOR ============ -->
+  <div id="tab-titles" class="tab-panel hidden">
+    <div class="flex items-center gap-3 mb-6">
+      <h2 class="text-lg font-bold">Title Generator</h2>
+      <select id="title-ch-sel" onchange="loadTitleBank()" class="bg-[#0d1520] border border-[#162030] rounded-lg text-sm px-3 py-2 text-[#c8daea]">
+        <option value="">-- Pilih Channel --</option>
+      </select>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Kolom Kiri: Bank Judul -->
+      <div class="space-y-4">
+        <div class="card p-6">
+          <div class="flex justify-between items-center mb-4">
+            <div>
+              <h3 class="font-bold text-sm text-[#c8daea]">TITLE BANK</h3>
+              <p class="text-xs text-[#7a9ab8]" id="title-bank-count">0 judul tersimpan</p>
+            </div>
+            <div class="flex gap-2">
+              <button class="btn-ghost text-xs px-3 py-1.5 rounded-lg" onclick="document.getElementById('title-file-input').click()">⬆ Upload .txt</button>
+              <input type="file" id="title-file-input" accept=".txt" class="hidden" onchange="uploadTitleBank(event)">
+              <button class="btn-danger text-xs px-3 py-1.5 rounded-lg" onclick="clearTitleBank()">🗑 Clear</button>
+            </div>
+          </div>
+          <div class="bg-[#090d14] border border-[#162030] rounded-lg max-h-64 overflow-y-auto p-2" id="title-list">
+            <div class="text-center p-6 text-[#3a5470] text-xs">Pilih channel &amp; upload file .txt (satu judul per baris).</div>
+          </div>
+        </div>
+
+        <div class="card p-6">
+          <h3 class="font-bold text-sm text-[#c8daea] mb-3">➕ TAMBAH JUDUL MANUAL</h3>
+          <div class="flex gap-2">
+            <input type="text" id="manual-title-input" placeholder="Ketik judul baru..." class="flex-1 bg-[#090d14] border border-[#162030] rounded-lg text-sm px-3 py-2 text-[#c8daea]">
+            <button class="btn-primary text-xs px-4 py-2 rounded-lg" onclick="addManualTitle()">Tambah</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Kolom Kanan: Mesin Generator -->
+      <div class="space-y-4">
+        <div class="card p-6">
+          <h3 class="font-bold text-sm text-[#c8daea] mb-1">✦ GENERATOR</h3>
+          <p class="text-xs text-[#7a9ab8] mb-4">Otomatis merakit judul baru dari bank</p>
+          
+          <div class="space-y-3">
+            <div class="flex flex-col">
+              <label class="text-xs font-bold text-[#c8daea] mb-1">Jumlah Generate</label>
+              <input type="number" id="gen-count" value="10" min="1" max="100" class="bg-[#090d14] border border-[#162030] rounded-lg text-sm px-3 py-2 text-[#c8daea]">
+            </div>
+            <div class="flex flex-col">
+              <label class="text-xs font-bold text-[#c8daea] mb-1">Mode Generate</label>
+              <select id="gen-mode" class="bg-[#090d14] border border-[#162030] rounded-lg text-sm px-3 py-2 text-[#c8daea]">
+                <option value="recombine">Recombine (mix bagian judul)</option>
+                <option value="shuffle">Shuffle acak dari bank</option>
+                <option value="ai_style">AI-style (tambah variasi kata)</option>
+              </select>
+            </div>
+            <div class="flex flex-col">
+              <label class="text-xs font-bold text-[#c8daea] mb-1">Separator</label>
+              <select id="gen-sep" class="bg-[#090d14] border border-[#162030] rounded-lg text-sm px-3 py-2 text-[#c8daea]">
+                <option value=" - "> — (dash)</option>
+                <option value=" | "> | (pipe)</option>
+                <option value=" : "> : (colon)</option>
+                <option value=" "> (spasi)</option>
+              </select>
+            </div>
+          </div>
+          <button class="w-full btn-primary text-sm px-4 py-3 rounded-lg mt-4 font-bold" onclick="generateTitles()">✦ GENERATE SEKARANG</button>
+        </div>
+
+        <div class="card p-6 hidden" id="gen-result-card">
+          <div class="flex justify-between items-center mb-3">
+            <div>
+              <h3 class="font-bold text-sm text-[#c8daea]">HASIL GENERATE</h3>
+              <p class="text-xs text-[#00e887]" id="gen-result-count">0 judul baru</p>
+            </div>
+            <button class="btn-ghost text-xs px-3 py-1.5 rounded-lg" onclick="saveAllGenerated()">💾 Simpan Semua</button>
+          </div>
+          <div class="bg-[#090d14] border border-[#162030] rounded-lg max-h-64 overflow-y-auto p-2" id="gen-results"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: SYSTEM & API ============ -->
+  <div id="tab-system" class="tab-panel hidden space-y-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold">System</h2>
+    </div>
+
+    <!-- TELEGRAM BOT -->
+    <div class="card p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-sm text-[#c8daea]">📱 TELEGRAM NOTIFICATION</h3>
+      </div>
+      <p class="text-xs text-[#7a9ab8] mb-4">Bot akan mengirim laporan otomatis jika render selesai, gagal, atau pengingat jadwal video habis.</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="block text-xs text-[#7a9ab8] mb-1">Bot Token</label>
+          <input type="password" id="tg-token" placeholder="Contoh: 123456789:ABCDEF..." class="w-full bg-[#0d1520] border border-[#162030] rounded-lg text-sm px-3 py-2">
+        </div>
+        <div>
+          <label class="block text-xs text-[#7a9ab8] mb-1">Chat ID</label>
+          <input type="text" id="tg-chatid" placeholder="Contoh: 987654321" class="w-full bg-[#0d1520] border border-[#162030] rounded-lg text-sm px-3 py-2">
+        </div>
+      </div>
+      <button type="button" class="btn-ghost text-xs px-4 py-2 rounded-lg" onclick="saveTgConfig()">💾 Simpan &amp; Test Pesan</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// 🔥 STATE DIDEKLARASIKAN DI PALING ATAS AGAR TIDAK TERJADI REFERENCE ERROR
+let channelsCache = [];
+let titleBankData = {};
+let generatedTitles = [];
+let currentTitleCh = '';
+let fbPagesCache = [];
+
+const GALLERY_TYPES = [
+  { key: 'audio_non_cid', label: '🎵 Audio (Non-CID)',                 type: 'audio_non_cid' },
+  { key: 'audio_cid',     label: '⚠️ Audio (CID)',                     type: 'audio_cid' },
+  { key: 'background',    label: '🖼 Background Factory (16:9)',       type: 'background' },
+  { key: 'shorts_bg',     label: '📐 Background Shorts (9:16)',        type: 'shorts_bg' },
+  { key: 'thumbnails',    label: '🖼 Thumbnail Factory (1280x720)',    type: 'thumbnail' },
+  { key: 'shorts_thumb',  label: '📱 Custom Thumbnail Shorts (9:16)',  type: 'shorts_thumb' },
+  { key: 'base_video',    label: '🎬 Video Sumber Utuh (MP4)',         type: 'base_video' },
+];
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(el => el.classList.add('hidden'));
+  document.getElementById('tab-' + name).classList.remove('hidden');
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.querySelector(`.tab-btn[data-tab="${name}"]`).classList.add('active');
+}
+
+async function loadChannels() {
+  try {
+    const res = await fetch('/api/get_channels');
+    channelsCache = await res.json();
+    renderChannelList();
+    renderChannelSelect();
+  } catch (e) {
+    document.getElementById('yt-channel-list').innerHTML = `<p class="text-red-400 text-sm">Gagal memuat channel: ${e.message}</p>`;
+  }
+}
+
+function renderChannelList() {
+  const wrap = document.getElementById('yt-channel-list');
+  if (!channelsCache.length) {
+    wrap.innerHTML = `<p class="text-[#7a9ab8] text-sm">Belum ada channel terhubung.</p>`;
+    return;
+  }
+  wrap.innerHTML = channelsCache.map(c => `
+    <div class="card p-4 flex items-center gap-3">
+      <img src="${c.thumbnail || ''}" class="w-10 h-10 rounded-full object-cover bg-gray-800" onerror="this.style.visibility='hidden'">
+      <div class="flex-1 min-w-0">
+        <p class="font-semibold text-sm truncate">${c.name}</p>
+        <p class="text-xs text-[#7a9ab8] truncate">${c.yt_id}</p>
+      </div>
+      <span class="pill ${String(c.status||'').includes('Connected') ? 'pill-green' : 'pill-muted'}">${c.status || '-'}</span>
+      <button class="btn-ghost text-xs px-2.5 py-1 rounded-lg" onclick="stopChannelTasks('${c.yt_id}', '${(c.name||'').replace(/'/g,"\\'")}')">🛑 Stop</button>
+      <button class="btn-danger text-xs px-2.5 py-1 rounded-lg" onclick="deleteChannel('${c.yt_id}', '${(c.name||'').replace(/'/g,"\\'")}')">🗑 Hapus</button>
+    </div>
+  `).join('');
+}
+
+function renderChannelSelect() {
+  const selGallery = document.getElementById('gallery-channel-select');
+  if (selGallery) {
+    const currentG = selGallery.value;
+    selGallery.innerHTML = '<option value="">-- Pilih channel --</option>' +
+      channelsCache.map(c => `<option value="${c.yt_id}">${c.name}</option>`).join('');
+    if (currentG) selGallery.value = currentG;
+  }
+
+  const selTitle = document.getElementById('title-ch-sel');
+  if (selTitle) {
+    const currentT = selTitle.value;
+    selTitle.innerHTML = '<option value="">-- Pilih Channel --</option>' +
+      channelsCache.map(c => `<option value="${c.yt_id}">${c.name}</option>`).join('');
+    if (currentT) selTitle.value = currentT;
+  }
+  
+  channelsCache.forEach(c => { 
+    if (c.title_bank) titleBankData[c.yt_id] = c.title_bank; 
+  });
+}
+
+function checkApiStatus() {
+  fetch('/api/check_secret?t=' + Date.now()).then(r => r.json()).then(d => {
+    const b = document.getElementById('api-badge');
+    if (d.exists) { b.textContent = '🟢 API AKTIF'; b.className = 'pill pill-green'; } 
+    else { b.textContent = '🔴 BELUM ADA API'; b.className = 'pill pill-muted'; }
+  }).catch(() => {});
+}
+
+function uploadSecret() {
+  const form = document.getElementById('api-form'); 
+  const fileInput = form.querySelector('input[type=file]');
+  if (!fileInput.files.length) { alert('Pilih file client_secret.json dulu!'); return; }
+  fetch('/api/upload_secret', { method: 'POST', body: new FormData(form) })
+    .then(r => r.json()).then(d => { 
+      alert(d.message); 
+      checkApiStatus(); 
+      form.reset(); 
+    }).catch(() => alert('Gagal upload API key'));
+}
+
+function generateTVLink() {
+  fetch('/api/generate_tv_link').then(r => r.json()).then(d => {
+    const box = document.getElementById('tv-box'); 
+    const msg = document.getElementById('tv-msg'); 
+    const inp = document.getElementById('tv-url');
+    box.style.display = 'block';
+    if (d.error) { 
+      msg.textContent = d.error; 
+      msg.style.color = '#ff4d6d'; 
+      inp.style.display = 'none'; 
+    } else { 
+      msg.textContent = 'Copy link ini di profil Chrome channel YouTube target:'; 
+      msg.style.color = '#00e5ff'; 
+      inp.style.display = 'block'; 
+      inp.value = d.auth_url; 
+    }
+  }).catch(() => alert('Gagal generate link'));
+}
+
+function copyTvUrl() {
+  const inp = document.getElementById('tv-url'); inp.select();
+  if (navigator.clipboard) { 
+    navigator.clipboard.writeText(inp.value).then(() => alert('Link disalin!'))
+    .catch(() => { document.execCommand('copy'); alert('Link disalin!'); }); 
+  } else { 
+    document.execCommand('copy'); alert('Link disalin!'); 
+  }
+}
+
+function stopChannelTasks(yt_id, name) {
+  if (!confirm(`Hentikan seluruh antrean aktif untuk channel "${name}"? (Aset & profil tetap aman)`)) return;
+  fetch('/api/stop_channel/' + yt_id, { method: 'POST' })
+    .then(r => r.json())
+    .then(d => alert(d.message));
+}
+
+function deleteChannel(yt_id, name) {
+  if (!confirm(`⚠️ Hapus permanen channel "${name}" beserta seluruh file Gallery dan antreannya?`)) return;
+  const fd = new FormData();
+  fd.append('yt_id', yt_id);
+  fetch('/api/delete_channel', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(() => loadChannels());
+}
+
+function exportChannels() {
+  window.location.href = '/api/export_channels';
+}
+
+function importChannels(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (!confirm('⚠️ Import akan menimpa SEMUA channel yang ada saat ini. Lanjutkan?')) {
+    event.target.value = '';
+    return;
+  }
+  const fd = new FormData();
+  fd.append('file', file);
+  fetch('/api/import_channels', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(data => {
+      alert(data.status === 'success' ? '✅ ' + data.message : '❌ ' + data.message);
+      loadChannels();
+    })
+    .finally(() => { event.target.value = ''; });
+}
+
+// ───────── ASSET GALLERY TAB ─────────
+async function loadGallery() {
+  const yt_id = document.getElementById('gallery-channel-select').value;
+  const content = document.getElementById('gallery-content');
+  const hint = document.getElementById('gallery-empty-hint');
+
+  if (!yt_id) {
+    content.classList.add('hidden');
+    hint.classList.remove('hidden');
+    return;
+  }
+  hint.classList.add('hidden');
+  content.classList.remove('hidden');
+
+  const [countsRes, galleryRes] = await Promise.all([
+    fetch(`/api/get_asset_counts?yt_id=${yt_id}`),
+    fetch(`/api/get_gallery?yt_id=${yt_id}`)
+  ]);
+  const counts = await countsRes.json();
+  const gallery = await galleryRes.json();
+
+  document.getElementById('count-audio-non').innerText = counts.audio_non_cid ?? 0;
+  document.getElementById('count-audio-cid').innerText = counts.audio_cid ?? 0;
+  document.getElementById('count-background').innerText = counts.backgrounds ?? 0;
+  document.getElementById('count-shorts_bg').innerText = (counts.shorts_bg ?? (gallery.shorts_bg || []).length);
+  document.getElementById('count-thumbnails').innerText = counts.thumbnails ?? 0;
+  document.getElementById('count-base_video').innerText = counts.base_videos ?? 0;
+
+  const sectionsWrap = document.getElementById('gallery-sections');
+  sectionsWrap.innerHTML = GALLERY_TYPES.map(t => {
+    const items = gallery[t.key] || [];
+    return `
+      <div class="card p-4 mb-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold text-sm">${t.label} <span class="text-[#7a9ab8] font-normal">(${items.length})</span></h3>
+          <div class="flex gap-2">
+            <button id="btn-up-${t.key}" class="btn-ghost text-xs px-3 py-1.5 rounded-lg relative overflow-hidden" onclick="document.getElementById('upload-${t.key}').click()">
+              <span id="btn-text-${t.key}" class="relative z-10">+ Upload</span>
+              <div id="prog-${t.key}" class="absolute top-0 left-0 h-full bg-[#00e5ff]/20 w-0 transition-all duration-200"></div>
+            </button>
+            <input type="file" id="upload-${t.key}" class="hidden" multiple onchange="uploadAsset('${yt_id}', '${t.type}', '${t.key}', this)">
+            ${items.length ? `<button class="btn-danger text-xs px-3 py-1.5 rounded-lg relative z-10" onclick="clearFolder('${yt_id}', '${t.type}')">Sapu Bersih</button>` : ''}
+          </div>
+        </div>
+        ${items.length ? `
+          <div class="space-y-1 max-h-48 overflow-y-auto">
+            ${items.map(f => `
+              <div class="flex items-center justify-between text-xs bg-black/20 rounded-lg px-3 py-2">
+                <span class="truncate flex-1">${f.name}</span>
+                <span class="text-[#7a9ab8] mx-3">${f.size}</span>
+                <button class="text-[#ff8ba0] hover:text-[#ff4d6d]" onclick="deleteAsset('${yt_id}', '${t.type}', '${f.name.replace(/'/g,"\\'")}')">✕</button>
+              </div>
+            `).join('')}
+          </div>
+        ` : `<p class="text-[#3a5470] text-xs">Kosong.</p>`}
+      </div>
+    `;
+  }).join('');
+}
+
+function uploadAsset(yt_id, type, key, input) {
+  if (!input.files.length) return;
+  const btn = document.getElementById(`btn-up-${key}`);
+  const btnText = document.getElementById(`btn-text-${key}`);
+  const progBar = document.getElementById(`prog-${key}`);
+  
+  if (btn) { btn.disabled = true; btn.style.cursor = 'wait'; }
+
+  const fd = new FormData();
+  fd.append('yt_id', yt_id);
+  fd.append('type', type);
+  for (const f of input.files) fd.append('files[]', f);
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/upload_gallery', true);
+
+  xhr.upload.onprogress = function(e) {
+    if (e.lengthComputable) {
+      const percent = Math.round((e.loaded / e.total) * 100);
+      if (btnText) btnText.textContent = `Mengunggah... ${percent}%`;
+      if (progBar) progBar.style.width = `${percent}%`;
+    }
+  };
+
+  const resetUI = () => {
+    if (btn) { btn.disabled = false; btn.style.cursor = 'pointer'; }
+    if (btnText) btnText.textContent = '+ Upload';
+    if (progBar) progBar.style.width = '0%';
+    input.value = '';
+  };
+
+  xhr.onload = function() {
+    resetUI();
+    if (xhr.status === 200) {
+      try {
+          const data = JSON.parse(xhr.responseText);
+          if (data.status !== 'success') alert('❌ ' + data.message);
+      } catch(e) {}
+      loadGallery();
+    } else {
+      alert('❌ Upload gagal (Server Error: ' + xhr.status + ')');
+    }
+  };
+
+  xhr.onerror = function() {
+    resetUI();
+    alert('❌ Koneksi terputus saat upload!');
+  };
+
+  xhr.send(fd);
+}
+
+function deleteAsset(yt_id, type, name) {
+  const fd = new FormData();
+  fd.append('yt_id', yt_id);
+  fd.append('type', type);
+  fd.append('name', name);
+  fetch('/api/delete_gallery_file', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(() => loadGallery());
+}
+
+function clearFolder(yt_id, type) {
+  if (!confirm('Hapus SEMUA file di folder ini?')) return;
+  const fd = new FormData();
+  fd.append('yt_id', yt_id);
+  fd.append('type', type);
+  fetch('/api/clear_gallery_folder', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(() => loadGallery());
+}
+
+// ───────── TITLE GENERATOR ─────────
+function loadTitleBank() {
+  currentTitleCh = document.getElementById('title-ch-sel').value;
+  const bank = titleBankData[currentTitleCh] || [];
+  renderTitleList(bank);
+}
+
+function renderTitleList(bank) {
+  const list = document.getElementById('title-list');
+  document.getElementById('title-bank-count').textContent = bank.length + ' judul tersimpan';
+  if (!bank.length) {
+    list.innerHTML = `<div class="text-center p-6 text-[#3a5470] text-xs">Pilih channel &amp; upload file .txt (satu judul per baris).</div>`;
+    return;
+  }
+  list.innerHTML = bank.map((t, i) => `
+    <div class="flex items-center justify-between px-3 py-2 hover:bg-[#162030] rounded-md transition-colors group">
+      <div class="flex items-center gap-3 overflow-hidden">
+        <span class="text-[9px] text-[#3a5470] font-mono w-4 shrink-0">${i + 1}</span>
+        <span class="text-xs text-[#c8daea] truncate">${t}</span>
+      </div>
+      <button class="text-[#ff8ba0] opacity-0 group-hover:opacity-100 hover:text-[#ff4d6d] text-xs px-2" onclick="deleteTitle(${i})">✕</button>
+    </div>`).join('');
+}
+
+function uploadTitleBank(event) {
+  const ch = document.getElementById('title-ch-sel').value;
+  if (!ch) { alert('Pilih channel dulu sebelum upload Title Bank!'); event.target.value = ''; return; }
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split('\n').map(l => l.trim()).filter(Boolean);
+    if (!lines.length) { alert('File .txt kosong.'); return; }
+    if (!titleBankData[ch]) titleBankData[ch] = [];
+    titleBankData[ch] = [...new Set([...titleBankData[ch], ...lines])];
+    saveTitleBankToServer(ch);
+    currentTitleCh = ch;
+    renderTitleList(titleBankData[ch]);
+    alert('Judul berhasil diimport!');
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function addManualTitle() {
+  if (!currentTitleCh) { alert('Pilih channel dulu!'); return; }
+  const inp = document.getElementById('manual-title-input');
+  const val = inp.value.trim();
+  if (!val) return;
+  if (!titleBankData[currentTitleCh]) titleBankData[currentTitleCh] = [];
+  titleBankData[currentTitleCh].push(val);
+  inp.value = '';
+  saveTitleBankToServer(currentTitleCh);
+  renderTitleList(titleBankData[currentTitleCh]);
+}
+
+function deleteTitle(idx) {
+  if (!currentTitleCh || !titleBankData[currentTitleCh]) return;
+  titleBankData[currentTitleCh].splice(idx, 1);
+  saveTitleBankToServer(currentTitleCh);
+  renderTitleList(titleBankData[currentTitleCh]);
+}
+
+function clearTitleBank() {
+  if (!currentTitleCh) { alert('Pilih channel dulu!'); return; }
+  if (!confirm('Hapus semua judul?')) return;
+  titleBankData[currentTitleCh] = [];
+  saveTitleBankToServer(currentTitleCh);
+  renderTitleList([]);
+}
+
+function saveTitleBankToServer(ch) {
+  const lines = titleBankData[ch] || [];
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const fd = new FormData();
+  fd.append('yt_id', ch);
+  fd.append('txt_file', blob, 'titles.txt');
+  fetch('/api/upload_title_bank', { method: 'POST', body: fd }).catch(err => console.warn(err));
+}
+
+function generateTitles() {
+  if (!currentTitleCh) { alert('Pilih channel dulu!'); return; }
+  const bank = titleBankData[currentTitleCh] || [];
+  if (bank.length < 2) { alert('Bank judul harus berisi minimal 2 judul untuk di-mix!'); return; }
+  const count = parseInt(document.getElementById('gen-count').value) || 10;
+  const mode = document.getElementById('gen-mode').value;
+  const sep = document.getElementById('gen-sep').value;
+
+  generatedTitles = [];
+  const parts = bank.map(t => {
+    const m = t.match(/([|\-:])/);
+    if (m) { const s = m[1]; const sp = t.split(s); return [sp[0].trim(), sp.slice(1).join(s).trim()]; }
+    const words = t.split(' '), mid = Math.ceil(words.length / 2);
+    return [words.slice(0, mid).join(' '), words.slice(mid).join(' ')];
+  });
+  const firsts = parts.map(p => p[0]).filter(Boolean);
+  const seconds = parts.map(p => p[1]).filter(Boolean);
+
+  const qualifiers = ['Relaxing','Peaceful','Dreamy','Smooth','Deep','Warm','Soft','Calm','Pure','Mellow','Gentle','Soothing'];
+  const vibes = ['Vibes','Mood','Session','Mix','Edition','Collection','Series','Journey','Escape','Moment'];
+
+  let attempts = 0; const maxAttempts = count * 10;
+
+  while (generatedTitles.length < count && attempts < maxAttempts) {
+    attempts++;
+    let title = '';
+    if (mode === 'recombine') {
+      const a = firsts[Math.floor(Math.random() * firsts.length)];
+      const b = seconds[Math.floor(Math.random() * seconds.length)];
+      title = a + sep + b;
+    } else if (mode === 'shuffle') {
+      title = bank[Math.floor(Math.random() * bank.length)];
+    } else {
+      const base = bank[Math.floor(Math.random() * bank.length)];
+      const q = qualifiers[Math.floor(Math.random() * qualifiers.length)];
+      const v = vibes[Math.floor(Math.random() * vibes.length)];
+      const vars = [`${q} ${base}`, `${base} ${v}`, `${q} ${base} ${v}`, `${base} — ${q} ${v}`];
+      title = vars[Math.floor(Math.random() * vars.length)];
+    }
+    title = title.replace(/\s+/g, ' ').trim();
+    if (!generatedTitles.includes(title)) generatedTitles.push(title);
+  }
+
+  const rc = document.getElementById('gen-results');
+  rc.innerHTML = generatedTitles.map((t, i) => `
+    <div class="flex items-center justify-between px-2 py-1.5 border-b border-[#162030] hover:bg-[#162030] rounded transition-colors">
+      <div class="flex items-center gap-2 overflow-hidden">
+        <span class="text-[9px] text-[#3a5470] font-mono shrink-0">${i + 1}</span>
+        <span class="text-xs text-[#c8daea] truncate">${t}</span>
+      </div>
+      <button class="text-[10px] text-[#00d4ff] hover:text-[#00e5ff] font-bold shrink-0 px-2" onclick="addOneGenTitle(${i})">+ Pakai</button>
+    </div>`).join('');
+  document.getElementById('gen-result-count').textContent = generatedTitles.length + ' judul baru';
+  document.getElementById('gen-result-card').classList.remove('hidden');
+}
+
+function addOneGenTitle(idx) {
+  if (!currentTitleCh) return;
+  if (!titleBankData[currentTitleCh]) titleBankData[currentTitleCh] = [];
+  titleBankData[currentTitleCh].push(generatedTitles[idx]);
+  saveTitleBankToServer(currentTitleCh);
+  renderTitleList(titleBankData[currentTitleCh]);
+}
+
+function saveAllGenerated() {
+  if (!currentTitleCh || !generatedTitles.length) return;
+  if (!titleBankData[currentTitleCh]) titleBankData[currentTitleCh] = [];
+  titleBankData[currentTitleCh] = [...new Set([...titleBankData[currentTitleCh], ...generatedTitles])];
+  saveTitleBankToServer(currentTitleCh);
+  renderTitleList(titleBankData[currentTitleCh]);
+  alert(`${generatedTitles.length} judul disimpan ke bank!`);
+}
+
+// ───────── TOPBAR SYS STATS & TELEGRAM ─────────
+function pollSysStats() {
+  fetch('/api/get_dashboard_stats').then(r => r.json()).then(d => {
+    if (d.sys_cpu !== undefined) {
+      document.getElementById('sys-cpu').textContent = d.sys_cpu + '%';
+      document.getElementById('sys-ram').textContent = d.sys_ram_pct + '%';
+      document.getElementById('sys-ram-txt').textContent = d.sys_ram_text;
+    }
+  }).catch(() => {});
+}
+
+function loadTgConfig() {
+  fetch('/api/get_telegram').then(r => r.json()).then(d => {
+    if(d.token) document.getElementById('tg-token').value = d.token;
+    if(d.chat_id) document.getElementById('tg-chatid').value = d.chat_id;
+  }).catch(()=>{});
+}
+
+function saveTgConfig() {
+  const token = document.getElementById('tg-token').value.trim();
+  const chat_id = document.getElementById('tg-chatid').value.trim();
+  fetch('/api/save_telegram', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({token: token, chat_id: chat_id})
+  }).then(r => r.json()).then(d => { alert(d.message); }).catch(() => alert('Gagal menyimpan Telegram'));
+}
+
+// ───────── GLOBAL FACEBOOK KONTROL ─────────
+function toggleFbForm() {
+  document.getElementById('fb-form-box').classList.toggle('hidden');
+}
+
+function loadFbPages() {
+  fetch('/api/get_fb_pages')
+    .then(r => r.json())
+    .then(d => {
+      fbPagesCache = d || [];
+      renderFbList();
+    })
+    .catch(() => {
+      document.getElementById('fb-page-list').innerHTML = `<p class="text-[#7a9ab8] text-sm col-span-2">Backend belum siap atau gagal memuat data.</p>`;
+    });
+}
+
+function renderFbList() {
+  const wrap = document.getElementById('fb-page-list');
+  
+  if (!fbPagesCache.length) {
+    wrap.innerHTML = `<p class="text-[#7a9ab8] text-sm col-span-2">Belum ada Page Facebook yang terhubung.</p>`;
+    return;
+  }
+  
+  wrap.innerHTML = fbPagesCache.map(p => `
+    <div class="card p-4 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-lg" style="background-color: #1877f2;">f</div>
+      <div class="flex-1 min-w-0">
+        <p class="font-semibold text-sm truncate">${p.name}</p>
+        <p class="text-[10px] text-[#7a9ab8] truncate mt-0.5">ID: ${p.page_id}</p>
+      </div>
+      <span class="pill pill-green">Connected 🟢</span>
+      <button class="btn-danger text-xs px-2.5 py-1 rounded-lg" onclick="deleteFbPage('${p.page_id}')">🗑 Hapus</button>
+    </div>
+  `).join('');
+}
+
+function saveFacebookConfig(event) {
+  const pageId = document.getElementById('fb-page-id').value.trim();
+  const token = document.getElementById('fb-access-token').value.trim();
+
+  if (!pageId || !token) { alert("Harap isi Page ID dan Access Token!"); return; }
+
+  const btn = event.target;
+  const originalText = btn.innerHTML;
+  btn.innerHTML = "⏳ Menghubungkan ke Meta...";
+  btn.disabled = true;
+
+  fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=name&access_token=${token}`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) {
+        btn.innerHTML = originalText; btn.disabled = false;
+        alert('❌ Gagal: ' + d.error.message);
+      } else {
+        const payload = { name: d.name, page_id: pageId, access_token: token };
+        
+        fetch('/api/save_fb_page', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(r => r.json()).then(res => {
+          btn.innerHTML = originalText; btn.disabled = false;
+          alert('✅ Page "' + d.name + '" berhasil dihubungkan!');
+          
+          document.getElementById('fb-page-id').value = '';
+          document.getElementById('fb-access-token').value = '';
+          toggleFbForm();
+          loadFbPages();
+        });
+      }
+    })
+    .catch(() => {
+      btn.innerHTML = originalText; btn.disabled = false;
+      alert('❌ Gagal menghubungi server Facebook.');
+    });
+}
+
+function deleteFbPage(pageId) {
+  if(!confirm("Hapus Facebook Page ini secara permanen?")) return;
+  fetch('/api/delete_fb_page', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ page_id: pageId })
+  }).then(r => r.json()).then(() => loadFbPages());
+}
+
+
+// ───────── INIT ─────────
+pollSysStats();
+setInterval(pollSysStats, 3000);
+checkApiStatus();
+loadTgConfig();
+loadChannels();
+loadFbPages();
+</script>
+</body>
+</html>

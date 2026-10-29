@@ -10,41 +10,128 @@
             background-color: #0b111a; 
             color: #ffffff; 
         }
-        .card-hover:hover {
-            border-color: #00e5ff;
-            box-shadow: 0 0 15px rgba(0, 229, 255, 0.15);
-            transform: translateY(-2px);
+        .mod-card {
+            background-color: #111722;
+            transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
         }
-        /* Memberikan efek border bercahaya statis untuk card Factory seperti di gambar */
-        .card-active {
+        .mod-card:hover {
+            transform: translateY(-4px);
+        }
+
+        /* 1. FACTORY — CYAN GLOW */
+        .glow-cyan {
+            border-color: rgba(0, 229, 255, 0.45);
+            box-shadow: 0 0 14px rgba(0, 229, 255, 0.08), inset 0 0 12px rgba(0, 229, 255, 0.03);
+        }
+        .glow-cyan:hover {
             border-color: #00e5ff;
-            box-shadow: 0 0 15px rgba(0, 229, 255, 0.15);
+            box-shadow: 0 0 22px rgba(0, 229, 255, 0.28), inset 0 0 15px rgba(0, 229, 255, 0.06);
+        }
+
+        /* 2. SHORTS — AMBER/ORANGE GLOW */
+        .glow-amber {
+            border-color: rgba(255, 183, 3, 0.4);
+            box-shadow: 0 0 14px rgba(255, 183, 3, 0.07), inset 0 0 12px rgba(255, 183, 3, 0.03);
+        }
+        .glow-amber:hover {
+            border-color: #ffb703;
+            box-shadow: 0 0 22px rgba(255, 183, 3, 0.28), inset 0 0 15px rgba(255, 183, 3, 0.06);
+        }
+
+        /* 3. CLIPPER — PURPLE/VIOLET GLOW */
+        .glow-purple {
+            border-color: rgba(168, 85, 247, 0.45);
+            box-shadow: 0 0 14px rgba(168, 85, 247, 0.08), inset 0 0 12px rgba(168, 85, 247, 0.03);
+        }
+        .glow-purple:hover {
+            border-color: #a855f7;
+            box-shadow: 0 0 22px rgba(168, 85, 247, 0.28), inset 0 0 15px rgba(168, 85, 247, 0.06);
+        }
+
+        /* 4. LIVE STREAMING — CRIMSON RED GLOW */
+        .glow-red {
+            border-color: rgba(255, 77, 109, 0.45);
+            box-shadow: 0 0 14px rgba(255, 77, 109, 0.08), inset 0 0 12px rgba(255, 77, 109, 0.03);
+        }
+        .glow-red:hover, .glow-red.is-active {
+            border-color: #ff4d6d;
+            box-shadow: 0 0 24px rgba(255, 77, 109, 0.32), inset 0 0 15px rgba(255, 77, 109, 0.08);
+        }
+
+        /* 5. TASK MONITOR — EMERALD GREEN GLOW */
+        .glow-emerald {
+            border-color: rgba(16, 185, 129, 0.45);
+            box-shadow: 0 0 14px rgba(16, 185, 129, 0.08), inset 0 0 12px rgba(16, 185, 129, 0.03);
+        }
+        .glow-emerald:hover {
+            border-color: #10b981;
+            box-shadow: 0 0 22px rgba(16, 185, 129, 0.28), inset 0 0 15px rgba(16, 185, 129, 0.06);
+        }
+
+        /* 6. ANALYTICS & MONETISASI — ROYAL BLUE GLOW */
+        .glow-blue {
+            border-color: rgba(59, 130, 246, 0.45);
+            box-shadow: 0 0 14px rgba(59, 130, 246, 0.08), inset 0 0 12px rgba(59, 130, 246, 0.03);
+        }
+        .glow-blue:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 0 22px rgba(59, 130, 246, 0.28), inset 0 0 15px rgba(59, 130, 246, 0.06);
+        }
+
+        .resource-link:hover {
+            border-color: #00e5ff;
+            color: #00e5ff;
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.12);
         }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center font-sans p-6">
-    
+
     <!-- HEADER -->
-    <div class="text-center mb-10">
-        <h1 class="text-4xl font-bold mb-3 tracking-wide">Keibot <span class="text-[#00e5ff]">Hub</span></h1>
+    <div class="text-center mb-6">
+        <h1 class="text-4xl font-bold mb-2 tracking-wide">Keibot <span class="text-[#00e5ff]">Hub</span></h1>
         <p class="text-gray-400 text-sm">Pilih modul operasi untuk memulai sesi</p>
     </div>
 
-    <!-- STATUS BOARD (DARK MODE) -->
-    <div class="bg-[#111722] rounded-xl border border-gray-800 p-5 mb-10 flex flex-wrap justify-center items-center gap-8 max-w-3xl w-full">
+    <!-- STATUS BOARD ATAS -->
+    <div class="bg-[#111722] rounded-xl border border-gray-800 p-4 mb-6 flex flex-wrap justify-center items-center gap-6 max-w-6xl w-full">
         <div class="text-center px-4">
             <p class="text-xs text-gray-500 mb-1">Factory aktif</p>
             <div class="flex items-baseline justify-center gap-1">
-                <span class="text-2xl font-bold text-white" id="stat-factory">-</span>
+                <span class="text-2xl font-bold text-[#00e5ff]" id="stat-factory">-</span>
                 <span class="text-xs text-gray-500">render</span>
+            </div>
+        </div>
+        <div class="w-px h-8 bg-gray-800 hidden sm:block"></div>
+        <div class="text-center px-4">
+            <p class="text-xs text-gray-500 mb-1">Shorts aktif</p>
+            <div class="flex items-baseline justify-center gap-1">
+                <span class="text-2xl font-bold text-[#ffb703]" id="stat-shorts">-</span>
+                <span class="text-xs text-gray-500">job</span>
             </div>
         </div>
         <div class="w-px h-8 bg-gray-800 hidden sm:block"></div>
         <div class="text-center px-4">
             <p class="text-xs text-gray-500 mb-1">Clipper aktif</p>
             <div class="flex items-baseline justify-center gap-1">
-                <span class="text-2xl font-bold text-white" id="stat-clipper">-</span>
+                <span class="text-2xl font-bold text-[#a855f7]" id="stat-clipper">-</span>
                 <span class="text-xs text-gray-500">clip</span>
+            </div>
+        </div>
+        <div class="w-px h-8 bg-gray-800 hidden sm:block"></div>
+        <div class="text-center px-4">
+            <p class="text-xs text-gray-500 mb-1">Total Antrean</p>
+            <div class="flex items-baseline justify-center gap-1">
+                <span class="text-2xl font-bold text-[#10b981]" id="stat-total-q">-</span>
+                <span class="text-xs text-gray-500">task</span>
+            </div>
+        </div>
+        <div class="w-px h-8 bg-gray-800 hidden sm:block"></div>
+        <div class="text-center px-4">
+            <p class="text-xs text-gray-500 mb-1">Live Streaming</p>
+            <div class="flex items-baseline justify-center gap-1">
+                <span class="text-2xl font-bold text-white" id="stat-live">-</span>
             </div>
         </div>
         <div class="w-px h-8 bg-gray-800 hidden sm:block"></div>
@@ -57,20 +144,75 @@
         </div>
     </div>
 
-    <!-- KARTU MODUL -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl w-full">
-        <!-- Factory -->
-        <a href="/factory" class="bg-[#111722] rounded-xl border border-gray-800 p-8 text-center card-active card-hover transition-all duration-300 block">
-            <h2 class="text-xl font-bold mb-4 text-[#00e5ff]">🏭 Factory</h2>
-            <p class="text-gray-400 text-sm leading-relaxed mb-4">Dashboard utama Batch Engine untuk auto-render visualizer audio dan jadwal upload massal ke YouTube.</p>
-            <p class="text-xs text-gray-600 mt-4 border-t border-gray-800 pt-3" id="txt-factory">Memuat status...</p>
+    <!-- BANNER PERINGATAN LIVE -->
+    <div id="live-warning" class="hidden max-w-6xl w-full mb-6 bg-[#2a0f16] border border-[#ff4d6d]/40 text-[#ff9db0] text-sm rounded-xl px-5 py-3 text-center">
+        🔴 Live Streaming sedang berjalan — Factory, Shorts, dan Clipper dijeda otomatis sampai stream berhenti.
+    </div>
+
+    <!-- KARTU MODUL: GRID 3 KOLOM x 2 BARIS (3x2) DENGAN LINE GLOW BERBEDA -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-6xl w-full mb-6">
+        
+        <!-- 1. Factory (Cyan Glow) -->
+        <a href="/factory" class="mod-card rounded-xl border p-6 text-center glow-cyan flex flex-col justify-between">
+            <div>
+                <h2 class="text-lg font-bold mb-3 text-[#00e5ff]">🏭 Factory</h2>
+                <p class="text-gray-400 text-xs leading-relaxed mb-4">Batch Engine untuk auto-render visualizer video panjang dan jadwal upload massal ke YouTube.</p>
+            </div>
+            <p class="text-xs text-[#00e5ff]/80 border-t border-gray-800/80 pt-3 font-mono" id="txt-factory">Memuat status...</p>
         </a>
 
-        <!-- Clipper -->
-        <a href="/clipper" class="bg-[#111722] rounded-xl border border-gray-800 p-8 text-center card-hover transition-all duration-300 block">
-            <h2 class="text-xl font-bold mb-4 text-[#00e5ff]">✂️ Clipper</h2>
-            <p class="text-gray-400 text-sm leading-relaxed mb-4">Potong video YouTube secara spesifik dan auto upload tanpa download manual.</p>
-            <p class="text-xs text-gray-600 mt-4 border-t border-gray-800 pt-3" id="txt-clipper">Memuat status...</p>
+        <!-- 2. Shorts (Amber Glow) -->
+        <a href="/shorts" class="mod-card rounded-xl border p-6 text-center glow-amber flex flex-col justify-between">
+            <div>
+                <h2 class="text-lg font-bold mb-3 text-[#ffb703]">⚡ Shorts</h2>
+                <p class="text-gray-400 text-xs leading-relaxed mb-4">Produksi & jadwal upload otomatis untuk YouTube Shorts, TikTok, dan Facebook Reels.</p>
+            </div>
+            <p class="text-xs text-[#ffb703]/80 border-t border-gray-800/80 pt-3 font-mono" id="txt-shorts">Memuat status...</p>
+        </a>
+
+        <!-- 3. Clipper (Purple Glow) -->
+        <a href="/clipper" class="mod-card rounded-xl border p-6 text-center glow-purple flex flex-col justify-between">
+            <div>
+                <h2 class="text-lg font-bold mb-3 text-[#a855f7]">✂️ Clipper</h2>
+                <p class="text-gray-400 text-xs leading-relaxed mb-4">Potong video YouTube secara spesifik, burn subtitle otomatis, dan jadwal upload tanpa download manual.</p>
+            </div>
+            <p class="text-xs text-[#a855f7]/80 border-t border-gray-800/80 pt-3 font-mono" id="txt-clipper">Memuat status...</p>
+        </a>
+
+        <!-- 4. Live Streaming (Red Glow) -->
+        <a href="/live" id="card-live" class="mod-card rounded-xl border p-6 text-center glow-red flex flex-col justify-between">
+            <div>
+                <h2 class="text-lg font-bold mb-3 text-[#ff4d6d]">🔴 Live Streaming</h2>
+                <p class="text-gray-400 text-xs leading-relaxed mb-4">Kontrol siaran langsung YouTube 24/7. Saat aktif, semua modul render otomatis dijeda.</p>
+            </div>
+            <p class="text-xs text-[#ff4d6d]/80 border-t border-gray-800/80 pt-3 font-mono" id="txt-live">Memuat status...</p>
+        </a>
+
+        <!-- 5. Task Monitor Terpusat (Emerald Green Glow) -->
+        <a href="/tasks" class="mod-card rounded-xl border p-6 text-center glow-emerald flex flex-col justify-between">
+            <div>
+                <h2 class="text-lg font-bold mb-3 text-[#10b981]">◈ Task Monitor</h2>
+                <p class="text-gray-400 text-xs leading-relaxed mb-4">Pusat komando antrean render & jadwal upload gabungan (Factory, Shorts, dan Clipper).</p>
+            </div>
+            <p class="text-xs text-[#10b981]/80 border-t border-gray-800/80 pt-3 font-mono" id="txt-tasks">Memuat antrean...</p>
+        </a>
+
+        <!-- 6. Analytics & Monetisasi (Royal Blue Glow) -->
+        <a href="/analytics" class="mod-card rounded-xl border p-6 text-center glow-blue flex flex-col justify-between">
+            <div>
+                <h2 class="text-lg font-bold mb-3 text-[#3b82f6]">📊 Analytics & Monetisasi</h2>
+                <p class="text-gray-400 text-xs leading-relaxed mb-4">Pantau perkembangan Views, Subscribers, Jam Tayang, dan syarat monetisasi seluruh channel.</p>
+            </div>
+            <p class="text-xs text-[#3b82f6]/80 border-t border-gray-800/80 pt-3 font-mono" id="txt-analytics">Memuat data channel...</p>
+        </a>
+
+    </div>
+
+    <!-- RESOURCE GLOBAL -->
+    <div class="max-w-6xl w-full">
+        <a href="/settings" class="resource-link bg-[#111722]/70 flex items-center justify-center gap-2 border border-gray-800 rounded-xl py-3.5 text-sm text-gray-300 transition-all duration-300">
+            <span>⚙️</span>
+            <span>Kelola Channel, Koneksi Platform &amp; Asset Gallery</span>
         </a>
     </div>
 
@@ -80,13 +222,49 @@
             try {
                 const response = await fetch('/api/hub_status');
                 const data = await response.json();
-                
-                document.getElementById('stat-factory').innerText = data.factory;
-                document.getElementById('stat-clipper').innerText = data.clipper;
-                document.getElementById('stat-cpu').innerText = data.cpu;
-                
-                document.getElementById('txt-factory').innerText = `${data.factory} video sedang dirender`;
-                document.getElementById('txt-clipper').innerText = `${data.clipper} clip sedang diproses`;
+
+                const factory = data.factory ?? 0;
+                const shorts = data.shorts ?? 0;
+                const clipper = data.clipper ?? 0;
+                const totalQueue = factory + shorts + clipper;
+                const historyCount = data.history ?? 0;
+                const channelCount = data.channels ?? 0;
+                const liveActive = !!data.live_active;
+                const cpu = data.cpu ?? '--%';
+
+                document.getElementById('stat-factory').innerText = factory;
+                document.getElementById('stat-shorts').innerText = shorts;
+                document.getElementById('stat-clipper').innerText = clipper;
+                document.getElementById('stat-total-q').innerText = totalQueue;
+                document.getElementById('stat-live').innerText = liveActive ? 'ON AIR' : 'Idle';
+                document.getElementById('stat-cpu').innerText = cpu;
+
+                document.getElementById('txt-factory').innerText = `${factory} video sedang dirender`;
+                document.getElementById('txt-shorts').innerText = `${shorts} job sedang diproses`;
+                document.getElementById('txt-clipper').innerText = `${clipper} clip sedang diproses`;
+                document.getElementById('txt-live').innerText = liveActive ? '🔴 Sedang siaran aktif' : 'Tidak sedang siaran';
+                document.getElementById('txt-tasks').innerText = `${totalQueue} antrean aktif · ${historyCount} selesai`;
+                document.getElementById('txt-analytics').innerText = `${channelCount} channel terhubung`;
+
+                const banner = document.getElementById('live-warning');
+                const liveCard = document.getElementById('card-live');
+                const prodCards = ['a[href="/factory]', 'a[href="/shorts"]', 'a[href="/clipper"]'];
+
+                if (liveActive) {
+                    banner.classList.remove('hidden');
+                    liveCard.classList.add('is-active');
+                    prodCards.forEach(sel => {
+                        const el = document.querySelector(sel);
+                        if (el) el.classList.add('pointer-events-none', 'opacity-40');
+                    });
+                } else {
+                    banner.classList.add('hidden');
+                    liveCard.classList.remove('is-active');
+                    prodCards.forEach(sel => {
+                        const el = document.querySelector(sel);
+                        if (el) el.classList.remove('pointer-events-none', 'opacity-40');
+                    });
+                }
             } catch (error) {
                 console.error("Gagal mengambil status Hub:", error);
             }

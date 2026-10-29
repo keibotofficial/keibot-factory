@@ -1,4 +1,6 @@
-import audioop
+import math
+from array import array
+from core.media import executable
 import base64
 import os
 import re
@@ -23,7 +25,7 @@ DEFAULT_PROVIDER_ORDER = ["huggingface", "groq", "gemini"]
 
 
 def get_ffmpeg_path():
-    return "/usr/bin/ffmpeg"
+    return executable('ffmpeg')
 
 
 def format_srt_time(seconds):
@@ -58,20 +60,22 @@ def get_viral_moments(source_video, count=1, duration_sec=40):
             duration = frames / float(rate)
 
             if duration <= duration_sec:
-                return [{"start": 0, "duration": int(duration)}]
+                wav_file.close()
+                os.remove(temp_wav)
+                return [{"start": 0, "duration": max(0.1, duration)}]
 
             rms_values = []
             window_frames = rate
             for _ in range(int(duration)):
                 data = wav_file.readframes(window_frames)
-                rms_values.append(audioop.rms(data, 2) if data else 0)
+                rms_values.append(int(math.sqrt(sum(sample * sample for sample in array("h", data)) / (len(data) // 2))) if data else 0)
 
         if os.path.exists(temp_wav):
             os.remove(temp_wav)
 
         candidates = []
         safe_limit = int(duration) - duration_sec
-        for index in range(max(0, safe_limit)):
+        for index in range(max(1, safe_limit + 1)):
             score = sum(rms_values[index:index + duration_sec])
             candidates.append({
                 "start": index,
@@ -156,9 +160,10 @@ def normalize_api_keys(api_keys, legacy_provider=None):
             key = item.strip()
             provider = infer_provider(key) or legacy_provider
         elif isinstance(item, dict):
-            key = str(item.get("key") or item.get("token") or "").strip()
-            provider = item.get("provider") or item.get("service")
-            provider = str(provider).strip().lower() if provider else None
+                key = str(item.get("key") or item.get("token") or "").strip()
+                # PAKSA BACA DARI PREFIX TOKEN (gsk_ / AIza), ABAIKAN LABEL DARI UI
+                provider = infer_provider(key) or item.get("provider") or item.get("service")
+                provider = str(provider).strip().lower() if provider else None
         else:
             continue
 
@@ -173,7 +178,8 @@ def normalize_api_keys(api_keys, legacy_provider=None):
         if provider in {"groq_whisper"}:
             provider = "groq"
 
-        if provider in DEFAULT_PROVIDER_ORDER:
+        # Pastikan groq dan gemini selalu lolos filter
+        if provider in DEFAULT_PROVIDER_ORDER or provider in ["groq", "gemini"]:
             normalized.append({"provider": provider, "key": key})
 
     return normalized

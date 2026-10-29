@@ -1,10 +1,34 @@
-# Keamanan File Rahasia
+# Runtime credentials, persistent state and private backups
 config.json
-client_secret.json
+client_secret*.json
 channels_db.json
-tasks_db.json
-
-# Abaikan folder hasil render & cache
+tasks_db.json*
+facebook_pages.json
+live_db.json
+presets.json
+clipper/*_db.json*
+shorts/*_db.json*
+live/*_db.json*
+.upload_state/
+backups/
+cookies.txt
+**/*cookie*.txt
+.env
+.env.*
+*.pem
+*.key
+*.lock
+# Media and generated outputs
 uploads/
-static/final_*.mp4
+downloads/
+output/
+logs/
+*.log
+static/*.mp4
+static/shorts_output/
+# Local environment
+venv/
+.venv/
 __pycache__/
+*.py[cod]
+.pytest_cache/

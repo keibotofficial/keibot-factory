@@ -13,7 +13,11 @@
         .text-primary { color: #00e5ff; }
         .bg-primary { background-color: #00e5ff; color: #000; }
         .bg-primaryhover:hover { background-color: #00b3cc; }
-        
+        .sys-monitor { display: flex; align-items: center; gap: 10px; background-color: #111722; border: 1px solid #1e2e42; border-radius: 8px; padding: 6px 14px; font-family: 'Courier New', monospace; }
+        .sm-item { display: flex; flex-direction: column; }
+        .sm-lbl { font-size: 8px; color: #6b7280; letter-spacing: .1em; margin-bottom: 1px; }
+        .sm-val { font-size: 12px; font-weight: 700; }
+
         input, select { background-color: #0a0f1c; border: 1px solid #1e2e42; color: #fff; outline: none; }
         input:focus, select:focus { border-color: #00e5ff; box-shadow: 0 0 0 2px rgba(0,229,255,0.2); }
         ::-webkit-scrollbar { width: 6px; }
@@ -30,16 +34,24 @@
         </div>
         
         <div class="flex items-center gap-3">
-    <!-- Tombol Kembali ke Hub -->
-    <a href="/hub" class="bg-[#111722] hover:bg-[#1a2332] border border-gray-700 px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
-        <i class="fa-solid fa-house"></i> Kembali ke Hub
-    </a>
+            <!-- Tombol Kembali ke Hub -->
+            <a href="/hub" class="bg-[#111722] hover:bg-[#1a2332] border border-gray-700 px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+                <i class="fa-solid fa-house"></i> Kembali ke Hub
+            </a>
 
-    <!-- Tombol Buka Galeri -->
-    <button onclick="openGallery()" class="bg-[#111722] hover:bg-[#1a2332] border border-gray-700 hover:border-primary text-white px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
-        <i class="fa-solid fa-folder-open text-primary"></i> Buka Galeri
-    </button>
-</div>
+            <!-- Tombol Buka Galeri -->
+            <button onclick="openGallery()" class="bg-[#111722] hover:bg-[#1a2332] border border-gray-700 hover:border-primary text-white px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+                <i class="fa-solid fa-folder-open text-primary"></i> Buka Galeri
+            </button>
+
+            <!-- Monitor CPU/RAM -->
+            <div class="sys-monitor">
+                <div class="sm-item"><span class="sm-lbl">CPU</span><span class="sm-val text-primary" id="sys-cpu">–%</span></div>
+                <div style="width:1px;height:22px;background:#1e2e42"></div>
+                <div class="sm-item"><span class="sm-lbl">RAM</span><span class="sm-val text-green-400" id="sys-ram">–%</span></div>
+                <div class="sm-item"><span style="font-size:9px;color:#6b7280" id="sys-ram-txt">–/–GB</span></div>
+            </div>
+        </div>
     </div>
 
     <div class="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -49,7 +61,7 @@
             
             <!-- STEP 1: Sumber Video -->
             <div class="bg-card border border-cardborder rounded-xl p-6">
-                <h2 class="text-primary font-bold mb-4 flex items-center gap-2"><i class="fa-brands fa-youtube"></i> 1. Sumber Video</h2>
+                <h2 class="text-primary font-bold mb-4 flex items-center gap-2"><i class="fa-brands fa-youtube"></i>1. Sumber Video</h2>
                 <div class="flex gap-3">
                     <div class="relative flex-grow">
                         <i class="fa-solid fa-link absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i>
@@ -126,16 +138,46 @@
                             </div>
                             <div id="fontUploadStatus" class="text-[10px] text-gray-400 mt-1 hidden">Mengunggah...</div>
                         </div>
-                        <div class="flex items-center mt-6">
-                            <label class="flex items-center cursor-pointer border border-cardborder px-4 py-2.5 rounded-lg w-full hover:border-primary transition-colors bg-[#0a0f1c]">
-                                <input type="checkbox" id="useVisualizer" class="w-4 h-4 text-primary bg-gray-900 border-gray-600 rounded">
-                                <span class="ml-3 text-sm text-gray-300">Tambahkan Spectrum Bar</span>
+                        
+                        <!-- VISUALIZER BAR BAWAH BARU -->
+                        <div class="mt-6 pt-4 border-t border-cardborder">
+                            <label class="flex items-center gap-2 cursor-pointer text-sm font-bold text-white mb-3 hover:text-primary transition">
+                                <input type="checkbox" id="useVisualizer" class="w-4 h-4 accent-primary bg-gray-900 border-gray-600 rounded" onchange="document.getElementById('vis-settings').classList.toggle('hidden', !this.checked)">
+                                <span>📊 Aktifkan Visualizer (Bar Bawah)</span>
                             </label>
+                            
+                            <!-- Panel Setting Lengkap Visualizer -->
+                            <div id="vis-settings" class="hidden bg-[#111c2a] border border-[#162030] border-l-2 border-l-primary p-4 rounded-xl shadow-lg mt-3">
+                                
+                                <!-- KANVAS PREVIEW 9:16 -->
+                                <div class="flex justify-center mb-4">
+                                    <div class="relative w-[140px] h-[250px] bg-[#05080d] rounded-lg overflow-hidden border border-[#162030] shadow-inner">
+                                        <span class="absolute top-2 w-full text-center text-[9px] text-gray-500 font-mono z-10">Live Preview (Simulasi)</span>
+                                        <canvas id="visPreviewCanvas" width="360" height="640" class="w-full h-full"></canvas>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-3">
+                                    <div class="flex gap-4 items-center">
+                                        <div><span class="text-[10px] text-gray-400 font-mono">Warna 1</span><br><input type="color" id="vis_color1" value="#ffb703" class="w-12 h-7 cursor-pointer bg-transparent border-0 p-0"></div>
+                                        <div><span class="text-[10px] text-gray-400 font-mono">Warna 2</span><br><input type="color" id="vis_color2" value="#00d4ff" class="w-12 h-7 cursor-pointer bg-transparent border-0 p-0"></div>
+                                        <div class="flex-1"><span class="text-[10px] text-gray-400 font-mono">Lebar (75%)</span><input type="range" id="vis_size" min="10" max="150" value="75" oninput="this.previousSibling.textContent='Lebar ('+this.value+'%)'" class="w-full accent-primary"></div>
+                                    </div>
+                                    <div class="flex gap-4">
+                                        <div class="flex-1"><span class="text-[10px] text-primary font-mono">Jml Bar (48)</span><input type="range" id="vis_bars" min="10" max="96" value="48" oninput="this.previousSibling.textContent='Jml Bar ('+this.value+')'" class="w-full accent-primary"></div>
+                                        <div class="flex-1"><span class="text-[10px] text-gray-400 font-mono">Tebal (35%)</span><input type="range" id="vis_thick" min="5" max="100" value="35" oninput="this.previousSibling.textContent='Tebal ('+this.value+'%)'" class="w-full accent-primary"></div>
+                                    </div>
+                                    <div class="flex gap-4">
+                                        <div class="flex-1"><span class="text-[10px] text-primary font-mono">Tinggi (45%)</span><input type="range" id="vis_height" min="10" max="150" value="45" oninput="this.previousSibling.textContent='Tinggi ('+this.value+'%)'" class="w-full accent-primary"></div>
+                                        <div class="flex-1"><span class="text-[10px] text-gray-400 font-mono">Posisi Y (82%)</span><input type="range" id="vis_posy" min="0" max="100" value="82" oninput="this.previousSibling.textContent='Posisi Y ('+this.value+'%)'" class="w-full accent-primary"></div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- NEW: PENGATURAN AUDIO & BGM -->
+                <!-- PENGATURAN AUDIO & BGM -->
                 <div class="border-t border-cardborder pt-5 mb-2">
                     <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-3">🎵 Pengaturan Audio & Musik Latar</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -160,7 +202,7 @@
                     </div>
                 </div>
 
-            </div>
+            </div> <!-- Penutup Bg-Card Step 2 -->
 
             <!-- STEP 3: Integrasi & Jadwal -->
             <div class="bg-card border border-cardborder rounded-xl p-6">
@@ -169,18 +211,19 @@
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                     <div>
                         <label class="block text-xs text-gray-400 mb-2">Destinasi Output</label>
-                        <select id="outputDest" class="w-full p-2.5 rounded-lg text-sm font-semibold text-primary bg-gray-900 border border-gray-700">
-                            <option value="local">💾 Simpan Lokal (Download)</option>
-                            <option value="youtube">▶️ Upload ke YouTube</option>
-                            <option value="drive">☁️ Kirim ke Google Drive</option>
-                            <option value="dropbox">📦 Kirim ke Dropbox</option>
+                        <select id="outputDest" onchange="toggleFbClipper()" class="w-full p-2.5 rounded-lg text-sm font-semibold text-primary bg-gray-900 border border-gray-700">
+                            <option value="youtube">▶️ Upload ke YouTube Shorts</option>
+                            <option value="facebook">f Upload ke FB Reels</option>
+                        </select>
+                        <!-- Dropdown khusus Facebook Page -->
+                        <select id="fbPageSelect" class="hidden w-full mt-2 p-2.5 rounded-lg text-sm bg-gray-900 border border-gray-700 text-white outline-none focus:border-primary">
+                            <option value="">-- Pilih FB Page --</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-xs text-gray-400 mb-2">Target Channel (Aset BGM)</label>
                         <select id="channelSelect" class="w-full p-2.5 rounded-lg text-sm">
                             <option value="">-- Pilih Channel --</option>
-                            <!-- Diisi via JS dari channels_db.json -->
                         </select>
                     </div>
                     <div>
@@ -198,8 +241,7 @@
             <button id="btnStartBatch" class="w-full bg-primary hover:bg-primaryhover text-black py-4 rounded-xl text-lg font-bold shadow-[0_0_20px_rgba(0,229,255,0.3)] transition-all transform hover:-translate-y-1 flex justify-center items-center gap-2">
                 <i class="fa-solid fa-rocket"></i> Generate & Jadwalkan Clip
             </button>
-
-        </div>
+        </div> <!-- PENUTUP KOLOM KIRI -->
 
         <!-- KOLOM KANAN: API & MONITOR -->
         <div class="space-y-6">
@@ -214,7 +256,6 @@
                 <div class="mb-3 border-b border-gray-800 pb-3">
                     <label class="block text-[10px] text-gray-400 mb-1">Pilih Provider AI untuk Auto-Lirik</label>
                     <select id="apiProviderSelect" class="w-full p-2 rounded-lg text-xs font-semibold bg-gray-900 border border-gray-700 text-white outline-none focus:border-primary transition-colors">
-                        <option value="huggingface">Hugging Face (Gratis - Sering Limit)</option>
                         <option value="groq">Groq Whisper (Gratis - Super Cepat)</option>
                         <option value="gemini">Gemini AI Studio (Gratis - Kuota Besar)</option>
                     </select>
@@ -223,7 +264,6 @@
                 <!-- Deskripsi & Dynamic Link -->
                 <p class="text-[10px] text-gray-400 mb-3 leading-relaxed">
                     Tambahkan API Key untuk fitur Auto-Lirik. 
-                    <a id="apiKeyLink" href="https://huggingface.co/settings/tokens" target="_blank" class="text-primary hover:text-white underline transition-colors font-semibold">Ambil Token HF di sini</a>. 
                     Sistem akan merotasi otomatis jika limit habis.
                 </p>
                 
@@ -267,8 +307,8 @@
                 </div>
             </div>
 
-        </div>
-    </div>
+        </div> <!-- PENUTUP KOLOM KANAN -->
+    </div> <!-- PENUTUP GRID MASTER -->
 
     <!-- Modal Galeri Hasil Clip -->
     <div id="galleryModal" class="hidden fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
@@ -287,15 +327,76 @@
             </div>
             <!-- Isi Galeri (Grid) -->
             <div id="galleryContainer" class="p-4 md:p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <!-- Data akan di-render dari JS -->
                 <div class="col-span-full text-center py-10 text-gray-500"><i class="fa-solid fa-spinner fa-spin text-2xl"></i><br>Memuat galeri...</div>
             </div>
         </div>
     </div>
 
-    <!-- UI Logics & DOM Manipulations akan disuntikkan dari clipper.js -->
     <script src="/static/js/clipper.js"></script>
     <script>
+        // --- MESIN PREVIEW VISUALIZER ---
+        (function() {
+            const canvas = document.getElementById('visPreviewCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            let animId;
+            let dummyBars = [];
+
+            function drawPreview() {
+                const cw = canvas.width;  // 360
+                const ch = canvas.height; // 640
+                ctx.clearRect(0, 0, cw, ch);
+
+                const c1 = document.getElementById('vis_color1').value || '#ffb703';
+                const c2 = document.getElementById('vis_color2').value || '#00d4ff';
+                const sizePct = parseInt(document.getElementById('vis_size').value) || 75;
+                const numBars = parseInt(document.getElementById('vis_bars').value) || 48;
+                const thickPct = parseInt(document.getElementById('vis_thick').value) || 35;
+                const heightPct = parseInt(document.getElementById('vis_height').value) || 45;
+                const posYPct = parseInt(document.getElementById('vis_posy').value) || 82;
+
+                if (dummyBars.length !== numBars) {
+                    dummyBars = new Array(numBars).fill(0);
+                }
+
+                const totW = cw * (sizePct / 100);
+                const startX = (cw / 2) - (totW / 2);
+                const slotW = totW / Math.max(1, numBars);
+                const space = Math.min(3, Math.max(0, slotW - 1));
+                const barW = Math.max(1, (slotW - space) * (thickPct / 100));
+                const offset = (slotW - barW) / 2;
+                const maxBarH = ch * 0.25 * (heightPct / 50); 
+                const cy = ch * (posYPct / 100);
+                const timeSec = Date.now() / 1000;
+
+                for (let i = 0; i < numBars; i++) {
+                    let wave = Math.abs(Math.sin(timeSec * 3.5 + i * 0.25) * Math.cos(timeSec * 1.5 + i * 0.5));
+                    let targetH = Math.pow(wave, 1.5) * maxBarH + 4;
+                    
+                    dummyBars[i] += (targetH - dummyBars[i]) * 0.2;
+                    let h = Math.max(2, dummyBars[i]);
+                    let px = startX + slotW * i + offset;
+
+                    let grad = ctx.createLinearGradient(0, cy, 0, cy - h);
+                    grad.addColorStop(0, c1);
+                    grad.addColorStop(1, c2);
+
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(px, cy - h, barW, h);
+                }
+                animId = requestAnimationFrame(drawPreview);
+            }
+
+            const chkBox = document.getElementById('useVisualizer');
+            if(chkBox) {
+                chkBox.addEventListener('change', function(e) {
+                    if (e.target.checked) drawPreview();
+                    else cancelAnimationFrame(animId);
+                });
+            }
+        })();
+
+        // --- SISTEM COOKIES MANAJER ---
         async function refreshCookieStatus() {
             const status = document.getElementById('cookieStatus');
             try {
@@ -347,6 +448,125 @@
         });
 
         refreshCookieStatus();
+
+        // --- MONITOR CPU RAM ---
+        function pollSysStats() {
+            fetch('/api/get_dashboard_stats').then(r => r.json()).then(d => {
+                if (d.sys_cpu !== undefined) {
+                    document.getElementById('sys-cpu').textContent = d.sys_cpu + '%';
+                    document.getElementById('sys-ram').textContent = d.sys_ram_pct + '%';
+                    document.getElementById('sys-ram-txt').textContent = d.sys_ram_text;
+                }
+            }).catch(() => {});
+        }
+        pollSysStats();
+        setInterval(pollSysStats, 3000);
+
+        // --- OVERRIDE FETCH CLIPPER ---
+        function toggleFbClipper() {
+            const dest = document.getElementById('outputDest').value;
+            const fbSel = document.getElementById('fbPageSelect');
+            if (dest === 'facebook') {
+                fbSel.classList.remove('hidden');
+                fetch('/api/get_fb_pages').then(r => r.json()).then(d => {
+                    if (d && d.length) {
+                        fbSel.innerHTML = '<option value="">-- Pilih FB Page --</option>' + 
+                            d.map(p => `<option value="${p.page_id}">${p.name}</option>`).join('');
+                    } else {
+                        fbSel.innerHTML = '<option value="">-- Page Kosong (Isi di Settings) --</option>';
+                    }
+                });
+            } else {
+                fbSel.classList.add('hidden');
+            }
+        }
+
+        const originalFetch = window.fetch;
+        window.fetch = async function() {
+            if (arguments[0] === '/api/clip/start' && arguments[1] && arguments[1].body) {
+                let body = JSON.parse(arguments[1].body);
+                body.outputDest = document.getElementById('outputDest') ? document.getElementById('outputDest').value : 'youtube';
+                body.fbPageId = document.getElementById('fbPageSelect') ? document.getElementById('fbPageSelect').value : '';
+                
+                const useVis = document.getElementById('useVisualizer');
+                body.useVisualizer = useVis ? useVis.checked : false;
+                if (body.useVisualizer) {
+                    body.visParams = {
+                        color1: document.getElementById('vis_color1').value,
+                        color2: document.getElementById('vis_color2').value,
+                        size: parseInt(document.getElementById('vis_size').value),
+                        num_bars: parseInt(document.getElementById('vis_bars').value),
+                        thickness: parseInt(document.getElementById('vis_thick').value),
+                        height_scale: parseInt(document.getElementById('vis_height').value),
+                        pos_y: parseInt(document.getElementById('vis_posy').value)
+                    };
+                }
+                arguments[1].body = JSON.stringify(body);
+            }
+            return originalFetch.apply(this, arguments);
+        };
     </script>
+    <script>
+(function() {
+    const canvas = document.getElementById('visPreviewCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let animId;
+    let dummyBars = [];
+
+    function drawPreview() {
+        const cw = canvas.width;
+        const ch = canvas.height;
+        ctx.clearRect(0, 0, cw, ch);
+
+        const c1 = document.getElementById('vis_color1').value || '#ffb703';
+        const c2 = document.getElementById('vis_color2').value || '#00d4ff';
+        const sizePct = parseInt(document.getElementById('vis_size').value) || 75;
+        const numBars = parseInt(document.getElementById('vis_bars').value) || 48;
+        const thickPct = parseInt(document.getElementById('vis_thick').value) || 35;
+        const heightPct = parseInt(document.getElementById('vis_height').value) || 45;
+        const posYPct = parseInt(document.getElementById('vis_posy').value) || 82;
+
+        if (dummyBars.length !== numBars) {
+            dummyBars = new Array(numBars).fill(0);
+        }
+
+        const totW = cw * (sizePct / 100);
+        const startX = (cw / 2) - (totW / 2);
+        const slotW = totW / Math.max(1, numBars);
+        const space = Math.min(3, Math.max(0, slotW - 1));
+        const barW = Math.max(1, (slotW - space) * (thickPct / 100));
+        const offset = (slotW - barW) / 2;
+        const maxBarH = ch * 0.25 * (heightPct / 50); 
+        const cy = ch * (posYPct / 100);
+        const timeSec = Date.now() / 1000;
+
+        for (let i = 0; i < numBars; i++) {
+            let wave = Math.abs(Math.sin(timeSec * 3.5 + i * 0.25) * Math.cos(timeSec * 1.5 + i * 0.5));
+            let targetH = Math.pow(wave, 1.5) * maxBarH + 4;
+            
+            dummyBars[i] += (targetH - dummyBars[i]) * 0.2; 
+            let h = Math.max(2, dummyBars[i]);
+            let px = startX + slotW * i + offset;
+
+            let grad = ctx.createLinearGradient(0, cy, 0, cy - h);
+            grad.addColorStop(0, c1);
+            grad.addColorStop(1, c2);
+
+            ctx.fillStyle = grad;
+            ctx.fillRect(px, cy - h, barW, h);
+        }
+        animId = requestAnimationFrame(drawPreview);
+    }
+
+    const chkBox = document.getElementById('useVisualizer');
+    if(chkBox) {
+        chkBox.addEventListener('change', function(e) {
+            if (e.target.checked) drawPreview();
+            else cancelAnimationFrame(animId);
+        });
+    }
+})();
+</script>
 </body>
 </html>

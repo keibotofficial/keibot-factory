@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Streaming Studio — KeiBot Hub</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Clash+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f6f9; --surface: #ffffff; --border: #e2e8f0; 
+    --text-main: #0f172a; --text-muted: #64748b; 
+    --red-main: #ef4444; --red-glow: rgba(239, 68, 68, 0.15); 
+    --font-d: 'Clash Display', sans-serif; --font-m: 'DM Mono', monospace;
+  }
+  body { 
+    background-color: var(--bg); color: var(--text-main); font-family: var(--font-d); 
+    background-image: radial-gradient(var(--border) 1px, transparent 1px); background-size: 24px 24px;
+  }
+  .topbar { 
+    padding: 12px 26px; border-bottom: 1px solid var(--border); 
+    background: rgba(255, 255, 255, 0.88); backdrop-filter: blur(12px); 
+    display: flex; align-items: center; gap: 14px; position: sticky; top: 0; z-index: 50; 
+  }
+  .card { 
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px; 
+    box-shadow: 0 4px 24px rgba(0,0,0,0.03);
+  }
+  .input-light {
+    background: #f8fafc; border: 1px solid #cbd5e1; color: var(--text-main);
+    border-radius: 8px; padding: 8px 12px; font-size: 12px; outline: none; transition: 0.2s;
+  }
+  .input-light:focus { border-color: var(--red-main); box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1); }
+  .btn-live {
+    background: linear-gradient(135deg, #ef4444, #dc2626); color: white; font-weight: 700;
+    border: none; border-radius: 8px; padding: 10px 20px; cursor: pointer; transition: all 0.2s;
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+  }
+  .btn-live:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(239, 68, 68, 0.45); }
+  .btn-live:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+  .preview-wrap {
+    position: relative; width: 100%; aspect-ratio: 16 / 9; background: #0f172a;
+    border-radius: 10px; overflow: hidden; border: 1px solid var(--border);
+  }
+  .preview-wrap video, .preview-wrap img {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none;
+  }
+  #live_canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+  .animate-fade-in { animation: fadeIn 0.2s ease-out forwards; }
+  @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div>
+    <div class="text-[20px] font-bold">Keibot <span style="color:var(--red-main)">Live Studio</span></div>
+    <div class="text-[10px] text-[#64748b] font-mono mt-0.5">Multi-Channel Dashboard &amp; VIP Priority-Lock (H-15m)</div>
+  </div>
+  <div class="ml-auto flex items-center gap-3">
+    <button onclick="openModal()" class="btn-live text-xs flex items-center gap-2">
+      <span class="text-lg leading-none">+</span> Create Live
+    </button>
+    <a href="/tasks" class="text-xs font-bold text-[#475569] hover:text-[var(--red-main)] transition flex items-center border border-[#cbd5e1] px-3 py-2 rounded-lg bg-white">📋 Task Monitor</a>
+    <a href="/hub" class="text-xs font-bold text-[#475569] hover:text-[var(--red-main)] transition flex items-center border border-[#cbd5e1] px-3 py-2 rounded-lg bg-white">🏠 Hub</a>
+    <div class="flex gap-3 bg-white border border-[#cbd5e1] rounded-lg px-3 py-1.5 font-mono text-xs">
+      <div class="flex flex-col"><span class="text-[8px] text-[#64748b]">CPU</span><span id="sys-cpu" class="font-bold text-[#3b82f6]">-</span></div>
+      <div class="w-px bg-[#e2e8f0]"></div>
+      <div class="flex flex-col"><span class="text-[8px] text-[#64748b]">RAM</span><span id="sys-ram" class="font-bold text-[#10b981]">-</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN DASHBOARD -->
+<div class="max-w-7xl mx-auto p-6 space-y-6">
+
+  <!-- KARTU METRIK ATAS -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-5">
+    <div class="card p-5 border-l-4 border-l-amber-500">
+      <div class="text-[10px] font-bold text-[#64748b] mb-1">TOTAL JADWAL AKTIF</div>
+      <div class="text-3xl font-bold text-[#0f172a]" id="stat-scheduled">0</div>
+    </div>
+    <div class="card p-5 border-l-4 border-l-blue-500">
+      <div class="text-[10px] font-bold text-[#64748b] mb-1">SEDANG ON AIR (LIVE)</div>
+      <div class="text-3xl font-bold text-blue-600" id="stat-active">0</div>
+    </div>
+    <div class="card p-5 border-l-4 border-l-[var(--red-main)]">
+      <div class="text-[10px] font-bold text-[#64748b] mb-1">TOTAL VIEWERS LIVE</div>
+      <div class="text-3xl font-bold text-[var(--red-main)] flex items-center gap-2">
+        <span id="stat-viewers">0</span> <span class="text-base">👀</span>
+      </div>
+    </div>
+    <div class="card p-5 border-l-4 border-l-green-500">
+      <div class="text-[10px] font-bold text-[#64748b] mb-1">TOTAL LIKES LIVE</div>
+      <div class="text-3xl font-bold text-green-600 flex items-center gap-2">
+        <span id="stat-likes">0</span> <span class="text-base">👍</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABEL ANTREAN MULTI-CHANNEL -->
+  <div class="card overflow-hidden">
+    <div class="flex justify-between items-center p-4 border-b border-[var(--border)] bg-gray-50">
+      <div>
+        <h2 class="text-sm font-bold tracking-wider">📡 DAFTAR JADWAL &amp; STATUS LIVE LINTAS CHANNEL</h2>
+        <p class="text-[10px] text-[#64748b]">Alur: Render Base Video di Antrean VIP Global &rarr; Bebas Lock &rarr; Kunci Server H-15 Menit &rarr; On Air</p>
+      </div>
+      <button onclick="pollLiveStatus()" class="text-xs font-bold text-blue-600 hover:underline bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200">🔄 Refresh Data</button>
+    </div>
+    <div class="p-0 overflow-x-auto">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-[#f8fafc] text-[10px] text-[#64748b] font-mono tracking-wider border-b border-[#e2e8f0]">
+            <th class="p-3 pl-5">CHANNEL</th>
+            <th class="p-3">JUDUL &amp; ASET</th>
+            <th class="p-3">JADWAL MULAI</th>
+            <th class="p-3">DURASI</th>
+            <th class="p-3">VIEWERS / LIKES</th>
+            <th class="p-3">STATUS</th>
+            <th class="p-3 text-right pr-5">AKSI</th>
+          </tr>
+        </thead>
+        <tbody id="live-queue-list" class="text-xs font-medium">
+          <tr><td colspan="7" class="p-8 text-center text-[#64748b]">Memuat data jadwal siaran...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- POP-UP MODAL: CREATE LIVE -->
+<div id="live-modal" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm hidden">
+  <div class="bg-white rounded-xl shadow-2xl w-[95vw] max-w-6xl max-h-[92vh] flex flex-col overflow-hidden animate-fade-in">
+    
+    <div class="flex justify-between items-center p-4 border-b border-gray-200 bg-gray-50">
+      <div>
+        <h2 class="text-base font-bold text-gray-800">⚙️ Buat Jadwal Live Streaming Baru</h2>
+        <p class="text-[11px] text-gray-500">Base video akan dirender otomatis melalui Antrean VIP Factory.</p>
+      </div>
+      <button onclick="closeModal()" class="text-gray-400 hover:text-red-500 text-2xl font-bold px-2 leading-none">&times;</button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
+      
+      <!-- KOLOM KIRI: METADATA & JADWAL -->
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-[#475569] mb-1">Channel YouTube Target <span class="text-red-500">*</span></label>
+          <select id="live-channel" onchange="onChannelChange()" class="input-light w-full border-gray-300">
+            <option value="">-- Pilih Channel --</option>
+          </select>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-[#475569] mb-1">Waktu Mulai Siaran <span class="text-red-500">*</span></label>
+            <input type="datetime-local" id="live-start" class="input-light w-full font-mono text-xs">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-[#475569] mb-1">Durasi Siaran Bebas (Jam) <span class="text-red-500">*</span></label>
+            <input type="number" id="live-duration" value="4" min="0.5" step="0.5" class="input-light w-full font-mono" placeholder="Contoh: 12">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-[#475569] mb-1">Judul Siaran Langsung <span class="text-red-500">*</span></label>
+          <input type="text" id="live-title" placeholder="Contoh: 🔴 LIVE FULL BASS DJ DANGDUT REMIX NONSTOP" class="input-light w-full">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-[#475569] mb-1">Deskripsi Siaran</label>
+          <textarea id="live-desc" rows="4" placeholder="Tulis deskripsi siaran langsung..." class="input-light w-full resize-none"></textarea>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-[#475569] mb-1">Tags (Pisahkan dengan koma)</label>
+            <input type="text" id="live-tags" placeholder="live, musik, koplo, 24/7" class="input-light w-full">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-[#475569] mb-1">Privasi Siaran</label>
+            <select id="live-privacy" class="input-light w-full">
+              <option value="public">Public (Publik)</option>
+              <option value="unlisted">Unlisted (Tidak Publik)</option>
+              <option value="private">Private (Pribadi)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- KOLOM KANAN: ASET & PREVIEW -->
+      <div class="space-y-4">
+        <div class="preview-wrap shadow-inner">
+          <video id="preview_bg_vid" loop muted playsinline></video>
+          <img id="preview_bg_img" alt="bg">
+          <canvas id="live_canvas" width="640" height="360"></canvas>
+          <div id="preview-badge" class="absolute top-2 left-2 z-10 bg-black/60 text-white text-[10px] font-mono px-2 py-0.5 rounded">Preview 16:9</div>
+        </div>
+        
+        <div class="flex items-center justify-between gap-2">
+          <select id="live-preset" onchange="updateCanvasPreview()" class="input-light w-2/3 text-[var(--red-main)] font-semibold text-xs py-1.5">
+            <option value="">-- Acak Preset Visualizer Factory --</option>
+          </select>
+          <button type="button" onclick="shufflePreviewBg()" class="input-light w-1/3 text-center cursor-pointer hover:bg-gray-100 py-1.5 font-bold">🎲 Tes BG</button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <!-- DAFTAR SEMUA LAGU (NON-CID + CID) -->
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-[11px] font-bold text-[#475569]">Pilih Lagu (<span id="audio-count">0</span>)</label>
+              <button type="button" onclick="toggleSelectAll('audio-check')" class="text-[10px] font-bold text-blue-600 hover:underline">Select All</button>
+            </div>
+            <div id="audio-list" class="input-light h-[150px] overflow-y-auto space-y-1 bg-white p-2 border-gray-300">
+              <div class="text-[10px] text-gray-400 text-center mt-12">Pilih channel dulu...</div>
+            </div>
+          </div>
+
+          <!-- DAFTAR MULTI BACKGROUND -->
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-[11px] font-bold text-[#475569]">Pilih Background (<span id="bg-count">0</span>)</label>
+              <button type="button" onclick="toggleSelectAll('bg-check')" class="text-[10px] font-bold text-blue-600 hover:underline">Select All</button>
+            </div>
+            <div id="bg-list" class="input-light h-[150px] overflow-y-auto space-y-1 bg-white p-2 border-gray-300">
+              <div class="text-[10px] text-gray-400 text-center mt-12">Pilih channel dulu...</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-bold text-[#475569] mb-1">Thumbnail Siaran Langsung</label>
+          <select id="live-thumb" class="input-light w-full py-1.5">
+            <option value="">-- Otomatis Acak dari Folder Thumbnail --</option>
+          </select>
+        </div>
+
+      </div>
+
+    </div>
+
+    <div class="p-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
+      <span class="text-[11px] text-gray-500 font-mono">💡 Base video akan masuk ke Task Monitor dengan prioritas VIP.</span>
+      <div class="flex gap-3">
+        <button onclick="closeModal()" class="px-5 py-2 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-200 transition">Batal</button>
+        <button id="btn-schedule" class="btn-live text-xs px-6">⚡ Jadwalkan &amp; Render Base Video</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let galleryData = { audio_non_cid: [], audio_cid: [], background: [], thumbnails: [] };
+let channelsDict = {};
+let allPresets = {};
+let animFrameId = null;
+let channelsThumbDict = {};
+let previewLogoImg = new Image();
+let previewLogoLoaded = false;
+let previewLayerStates = {};
+
+function openModal() { 
+  document.getElementById('live-modal').classList.remove('hidden'); 
+  startPreviewLoop();
+}
+function closeModal() { 
+  document.getElementById('live-modal').classList.add('hidden'); 
+  if (animFrameId) cancelAnimationFrame(animFrameId);
+}
+
+async function loadChannels() {
+  try {
+    const res = await fetch('/api/get_channels');
+    const channels = await res.json();
+    const sel = document.getElementById('live-channel');
+    sel.innerHTML = '<option value="">-- Pilih Channel Target --</option>' + 
+                    channels.map(c => {
+                        if (typeof channelsDict !== 'undefined') channelsDict[c.yt_id] = c.name;
+                        channelsThumbDict[c.yt_id] = c.thumbnail || '';
+                        return `<option value="${c.yt_id}">${c.name}</option>`;
+                    }).join('');
+  } catch (e) {
+    console.error("Gagal memuat channel:", e);
+  }
+}
+
+async function loadPresets() {
+  try {
+    const res = await fetch('/api/get_presets');
+    allPresets = await res.json();
+    const sel = document.getElementById('live-preset');
+    sel.innerHTML = '<option value="">-- Acak Preset Visualizer Factory --</option>' + 
+      Object.keys(allPresets).map(k => `<option value="${k}">${k}</option>`).join('');
+  } catch (e) {
+    console.error("Gagal load presets", e);
+  }
+}
+
+async function onChannelChange() {
+  const yt_id = document.getElementById('live-channel').value;
+  
+  if (!yt_id) {
+     document.getElementById('audio-list').innerHTML = '<div class="text-[10px] text-gray-400 text-center mt-12">Pilih channel dulu...</div>';
+     document.getElementById('bg-list').innerHTML = '<div class="text-[10px] text-gray-400 text-center mt-12">Pilih channel dulu...</div>';
+     document.getElementById('live-thumb').innerHTML = '<option value="">-- Otomatis Acak dari Folder Thumbnail --</option>';
+     document.getElementById('audio-count').textContent = '0';
+     document.getElementById('bg-count').textContent = '0';
+     return;
+  }
+  
+  // Tampilkan tulisan Loading
+  document.getElementById('audio-list').innerHTML = '<div class="text-[10px] text-blue-500 font-bold text-center mt-12">⏳ Memuat lagu...</div>';
+  document.getElementById('bg-list').innerHTML = '<div class="text-[10px] text-blue-500 font-bold text-center mt-12">⏳ Memuat background...</div>';
+
+  loadChannelLogoForPreview(yt_id);
+
+  try {
+    // PERUBAHAN 1: Sesuaikan pemanggilan API menggunakan query string (?yt_id=)
+    const res = await fetch(`/api/get_gallery?yt_id=${yt_id}`);
+    if (!res.ok) throw new Error("Gagal mengambil data dari server");
+    galleryData = await res.json();
+    
+    // PERUBAHAN 2: Parsing nilai a.name dan a.size (karena backend mengirimkan objek)
+    const allAudio = [...(galleryData.audio_non_cid || []), ...(galleryData.audio_cid || [])];
+    document.getElementById('audio-count').textContent = allAudio.length;
+    if (allAudio.length === 0) {
+        document.getElementById('audio-list').innerHTML = '<div class="text-[10px] text-amber-500 text-center mt-12">⚠️ Folder audio kosong</div>';
+    } else {
+        document.getElementById('audio-list').innerHTML = allAudio.map(a => `
+          <label class="flex items-center gap-2 p-1.5 hover:bg-gray-50 border-b border-gray-100 cursor-pointer">
+            <input type="checkbox" value="${a.name}" class="audio-check w-3 h-3 text-red-600 rounded">
+            <span class="text-[10px] truncate" title="${a.name}">${a.name} <span class="text-[#64748b]">(${a.size})</span></span>
+          </label>
+        `).join('');
+    }
+
+    const allBg = galleryData.background || [];
+    document.getElementById('bg-count').textContent = allBg.length;
+    if (allBg.length === 0) {
+        document.getElementById('bg-list').innerHTML = '<div class="text-[10px] text-amber-500 text-center mt-12">⚠️ Folder background kosong</div>';
+    } else {
+        document.getElementById('bg-list').innerHTML = allBg.map(b => `
+          <label class="flex items-center gap-2 p-1.5 hover:bg-gray-50 border-b border-gray-100 cursor-pointer">
+            <input type="checkbox" value="${b.name}" class="bg-check w-3 h-3 text-red-600 rounded">
+            <span class="text-[10px] truncate" title="${b.name}">${b.name}</span>
+          </label>
+        `).join('');
+    }
+
+    const allThumb = galleryData.thumbnails || [];
+    const thumbSel = document.getElementById('live-thumb');
+    if (allThumb.length === 0) {
+        thumbSel.innerHTML = '<option value="">-- Tidak ada thumbnail (Akan pakai default) --</option>';
+    } else {
+        thumbSel.innerHTML = '<option value="">-- Otomatis Acak dari Folder Thumbnail --</option>' + 
+          allThumb.map(t => `<option value="${t.name}">${t.name}</option>`).join('');
+    }
+
+  } catch (e) {
+    console.error("Gagal load asset channel:", e);
+    document.getElementById('audio-list').innerHTML = `<div class="text-[10px] text-red-500 text-center mt-12">❌ Error: Server gagal merespon</div>`;
+    document.getElementById('bg-list').innerHTML = `<div class="text-[10px] text-red-500 text-center mt-12">❌ Error: Server gagal merespon</div>`;
+  }
+}
+
+function toggleSelectAll(className) {
+  const checkboxes = document.querySelectorAll('.' + className);
+  if(checkboxes.length === 0) return;
+  const allChecked = Array.from(checkboxes).every(c => c.checked);
+  checkboxes.forEach(c => c.checked = !allChecked);
+}
+
+function shufflePreviewBg() {
+  const bgChecks = Array.from(document.querySelectorAll('.bg-check:checked'));
+  const list = bgChecks.length > 0 ? bgChecks : document.querySelectorAll('.bg-check');
+  if(list.length === 0) return alert("Belum ada background untuk dites!");
+  
+  const rand = list[Math.floor(Math.random() * list.length)].value;
+  const yt_id = document.getElementById('live-channel').value;
+  
+  // 👉 PERBAIKAN: Hapus /static dan sesuaikan nama folder menjadi "backgrounds"
+  const path = `/uploads/${yt_id}/backgrounds/${rand}`;
+  
+  const vid = document.getElementById('preview_bg_vid');
+  const img = document.getElementById('preview_bg_img');
+  
+  if(rand.toLowerCase().endsWith('.mp4') || rand.toLowerCase().endsWith('.webm') || rand.toLowerCase().endsWith('.mov')) {
+    img.style.display = 'none';
+    vid.style.display = 'block';
+    vid.src = path;
+    vid.play();
+  } else {
+    vid.style.display = 'none';
+    img.style.display = 'block';
+    img.src = path;
+  }
+}
+
+// Muat foto profil channel untuk tengah Radial Visualizer
+function loadChannelLogoForPreview(yt_id) {
+  previewLogoLoaded = false;
+  const thumbUrl = channelsThumbDict[yt_id];
+  if (thumbUrl) {
+    previewLogoImg = new Image();
+    previewLogoImg.crossOrigin = "Anonymous";
+    previewLogoImg.onload = () => { previewLogoLoaded = true; };
+    previewLogoImg.src = thumbUrl;
+  }
+}
+
+// ==========================================================
+// 🎨 REAL FACTORY VISUALIZER PREVIEW ENGINE (MULTI-LAYER)
+// ==========================================================
+function hexToRgb(hex) {
+  const h = String(hex || '#10b981').replace('#', '');
+  if (h.length !== 6) return [16, 185, 129];
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+
+function lerpColor(c1, c2, ratio) {
+  const r = Math.max(0, Math.min(1, ratio));
+  return `rgb(${Math.round(c2[0] + (c1[0] - c2[0]) * r)}, ${Math.round(c2[1] + (c1[1] - c2[1]) * r)}, ${Math.round(c2[2] + (c1[2] - c2[2]) * r)})`;
+}
+
+function getLayerColor(cMode, c1Hex, c2Hex, ratio, t, beatIntensity) {
+  if (cMode === "Dynamic RGB Shift") {
+    const hue = Math.floor(((ratio + t * 0.2) % 1.0) * 360);
+    return `hsl(${hue}, 100%, 55%)`;
+  } else if (cMode === "Dual-Color Flash") {
+    return beatIntensity > 0.5 ? c1Hex : c2Hex;
+  }
+  return lerpColor(hexToRgb(c2Hex), hexToRgb(c1Hex), ratio);
+}
+
+function startPreviewLoop() {
+  const canvas = document.getElementById('live_canvas');
+  const ctx = canvas.getContext('2d');
+  let frameCount = 0;
+  let beatIntensity = 0;
+
+  function renderFrame() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    frameCount++;
+    const t = frameCount / 30.0;
+    const w = canvas.width;
+    const h = canvas.height;
+    const scaleRes = w / 640.0;
+
+    // Simulasi ketukan Beat Musik (Jedag-Jedug)
+    const rawBeat = Math.pow(Math.max(0, Math.sin(t * 5.5) * 0.65 + Math.sin(t * 2.3) * 0.35), 3);
+    if (rawBeat > beatIntensity) {
+      beatIntensity = beatIntensity * 0.3 + rawBeat * 0.7;
+    } else {
+      beatIntensity = beatIntensity * 0.8 + rawBeat * 0.2;
+    }
+
+    const pName = document.getElementById('live-preset').value;
+    const pCfg = (typeof allPresets !== 'undefined' && allPresets[pName]) ? allPresets[pName] : {};
+    const layers = (pCfg.layers && pCfg.layers.length) ? pCfg.layers : [
+      { id: "def_bar", name: "Visualizer (Bar Bawah)", num_bars: 64, size: 65, height_scale: 50, pos_x: 50, pos_y: 85, thickness: 45, bar_gap: 3, intensity: 50, color1: "#10b981", color2: "#00e5ff", color_mode: "Solid / Gradien" }
+    ];
+
+    document.getElementById('preview-badge').textContent = pName 
+      ? `Preset: ${pName} (${layers.length} Layer)` 
+      : 'Preview: Default Visualizer';
+
+    const isDouble = pCfg.vis_instance === 'double';
+    const instances = isDouble ? 2 : 1;
+
+    // Efek Zoom Jedag-Jedug pada Background Preview
+    const bgVid = document.getElementById('preview_bg_vid');
+    const bgImg = document.getElementById('preview_bg_img');
+    let zoomScale = 1.0;
+    layers.forEach(l => {
+      if ((l.name || '').includes("Zoom Jedag-Jedug")) {
+        const val = parseFloat(l.intensity ?? 50) / 100.0;
+        zoomScale = 1.0 + (val * 0.18 * beatIntensity);
+      }
+    });
+    if (bgVid) bgVid.style.transform = `scale(${zoomScale.toFixed(3)})`;
+    if (bgImg) bgImg.style.transform = `scale(${zoomScale.toFixed(3)})`;
+
+    // Render Setiap Layer sesuai urutan di Preset Factory
+    layers.forEach((layer, idx) => {
+      const lName = layer.name || '';
+      const lId = layer.id || `${lName}_${idx}`;
+      const intens = parseFloat(layer.intensity ?? 50);
+      const val = intens / 100.0;
+      const c1 = layer.color1 || '#10b981';
+      const c2 = layer.color2 || '#00e5ff';
+      const cMode = layer.color_mode || 'Solid / Gradien';
+      const sizeFactor = parseFloat(layer.size ?? 60) / 100.0;
+      const px = parseFloat(layer.pos_x ?? 50);
+      const py = parseFloat(layer.pos_y ?? 85);
+
+      for (let inst = 0; inst < instances; inst++) {
+        const curPx = (inst === 0 && instances === 2) ? 25.0 : ((inst === 1 && instances === 2) ? 75.0 : px);
+        const curSizeFactor = instances === 2 ? sizeFactor * 0.45 : sizeFactor;
+        const cx = w * (curPx / 100.0);
+        const cy = h * (py / 100.0);
+
+        // 1. VISUALIZER (BAR BAWAH, RADIAL BAR, WAVEFORM GARIS)
+        if (["Visualizer (Bar Bawah)", "Visualizer (Radial Bar Biasa)", "Visualizer (Waveform Garis)"].includes(lName)) {
+          const numBars = Math.max(10, parseInt(layer.num_bars ?? 64));
+          const maxH = h * (parseFloat(layer.height_scale ?? 50) / 100.0) * 0.7;
+
+          const stateKey = `bars_${lId}_${inst}`;
+          if (!previewLayerStates[stateKey] || previewLayerStates[stateKey].length !== numBars) {
+            previewLayerStates[stateKey] = new Array(numBars).fill(0);
+          }
+          const barArr = previewLayerStates[stateKey];
+
+          for (let i = 0; i < numBars; i++) {
+            const pseudoRand = Math.abs(Math.sin((i + 1) * 12.9898) * 43758.5453) % 1.0;
+            const wave = Math.abs(Math.sin(t * 4.2 + pseudoRand * 6.0) * Math.cos(t * 2.5 * i * 0.15));
+            const rawNorm = Math.min(1.0, wave * (0.45 + beatIntensity * 0.75));
+            const target = Math.pow(rawNorm, 1.8) * 0.85;
+            barArr[i] = target > barArr[i] ? (barArr[i] * 0.25 + target * 0.75) : (barArr[i] * 0.65 + target * 0.35);
+          }
+
+          // A. BAR BAWAH
+          if (lName === "Visualizer (Bar Bawah)") {
+            const totalW = w * curSizeFactor;
+            const startX = cx - totalW / 2.0;
+            const slotW = totalW / numBars;
+            const rawGap = parseFloat(layer.bar_gap ?? 3) * scaleRes;
+            const space = Math.min(rawGap, Math.max(0, slotW - 1));
+            const maxBarW = Math.max(1, slotW - space);
+            const thickRatio = Math.max(0.05, parseFloat(layer.thickness ?? 30) / 100.0);
+            const barW = Math.max(1, Math.round(maxBarW * thickRatio));
+            const barOffset = (slotW - barW) / 2.0;
+
+            for (let i = 0; i < numBars; i++) {
+              const ratio = i / Math.max(1, numBars - 1);
+              const bh = Math.max(2, barArr[i] * maxH * (1.0 + beatIntensity * val * 0.35));
+              const x = startX + slotW * i + barOffset;
+              const y = cy - bh;
+
+              if (cMode === "Solid / Gradien") {
+                const grad = ctx.createLinearGradient(0, cy, 0, y);
+                grad.addColorStop(0, c1);
+                grad.addColorStop(1, c2);
+                ctx.fillStyle = grad;
+              } else {
+                ctx.fillStyle = getLayerColor(cMode, c1, c2, ratio, t, beatIntensity);
+              }
+              ctx.fillRect(x, y, barW, bh);
+            }
+          }
+
+          // B. RADIAL BAR BIASA + LOGO CHANNEL
+          else if (lName === "Visualizer (Radial Bar Biasa)") {
+            const baseRadius = Math.min(w, h) * 0.32 * curSizeFactor;
+            const pulseR = baseRadius + (beatIntensity * 12.0 * val * scaleRes);
+            const maxRadialH = maxH * 0.65;
+            const circumference = 2.0 * Math.PI * pulseR;
+            const slotArc = circumference / numBars;
+            const rawGap = parseFloat(layer.bar_gap ?? 3) * scaleRes;
+            const space = Math.min(rawGap, Math.max(0, slotArc - 1));
+            const maxBarW = Math.max(1, slotArc - space);
+            const thickRatio = Math.max(0.05, parseFloat(layer.thickness ?? 30) / 100.0);
+            const barW = Math.max(1, Math.round(maxBarW * thickRatio));
+
+            ctx.lineCap = 'round';
+            for (let i = 0; i < numBars; i++) {
+              const ratio = i / Math.max(1, numBars - 1);
+              const bh = Math.max(2, barArr[i] * maxRadialH * (1.0 + beatIntensity * val * 0.35));
+              const angle = (i / numBars) * 2.0 * Math.PI - (Math.PI / 2.0);
+              const cosA = Math.cos(angle);
+              const sinA = Math.sin(angle);
+
+              const x1 = cx + cosA * pulseR;
+              const y1 = cy + sinA * pulseR;
+              const x2 = cx + cosA * (pulseR + bh);
+              const y2 = cy + sinA * (pulseR + bh);
+
+              ctx.beginPath();
+              ctx.moveTo(x1, y1);
+              ctx.lineTo(x2, y2);
+              ctx.lineWidth = barW;
+              ctx.strokeStyle = getLayerColor(cMode, c1, c2, ratio, t, beatIntensity);
+              ctx.stroke();
+            }
+
+            const innerR = Math.max(4, pulseR - 3 * scaleRes);
+            if (layer.use_logo !== false && previewLogoLoaded) {
+              ctx.save();
+              ctx.beginPath();
+              ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
+              ctx.closePath();
+              ctx.clip();
+              ctx.drawImage(previewLogoImg, cx - innerR, cy - innerR, innerR * 2, innerR * 2);
+              ctx.restore();
+            }
+            ctx.beginPath();
+            ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
+            ctx.lineWidth = Math.max(1.5, 2.5 * scaleRes);
+            ctx.strokeStyle = c1;
+            ctx.stroke();
+          }
+
+          // C. WAVEFORM GARIS
+          else if (lName === "Visualizer (Waveform Garis)") {
+            const totalW = w * curSizeFactor;
+            const startX = cx - totalW / 2.0;
+            const slotW = totalW / Math.max(1, numBars - 1);
+            const lineW = Math.max(2, Math.round((parseFloat(layer.thickness ?? 30) / 100.0) * 12.0 * scaleRes));
+
+            ctx.lineWidth = lineW;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+
+            for (let i = 0; i < numBars - 1; i++) {
+              const ratio = i / Math.max(1, numBars - 1);
+              const h1 = Math.max(2, barArr[i] * maxH * (1.0 + beatIntensity * val * 0.35));
+              const h2 = Math.max(2, barArr[i+1] * maxH * (1.0 + beatIntensity * val * 0.35));
+              ctx.beginPath();
+              ctx.moveTo(startX + slotW * i, cy - h1);
+              ctx.lineTo(startX + slotW * (i + 1), cy - h2);
+              ctx.strokeStyle = getLayerColor(cMode, c1, c2, ratio, t, beatIntensity);
+              ctx.stroke();
+            }
+          }
+        }
+
+        // 2. PARTICLE (MELAYANG & BELOK SAAT BEAT)
+        else if (lName.includes("Particle")) {
+          const targetCount = Math.max(10, parseInt(layer.part_count ?? 60));
+          const sizeScale = (parseFloat(layer.size ?? 50) / 50.0) * scaleRes;
+          const flowSpeed = Math.max(0.15, parseFloat(layer.flow_speed ?? 40) / 40.0);
+          const pKey = `part_${lId}`;
+
+          if (!previewLayerStates[pKey]) previewLayerStates[pKey] = [];
+          const pList = previewLayerStates[pKey];
+
+          while (pList.length < targetCount) {
+            const ang = Math.random() * Math.PI * 2;
+            pList.push({
+              x: Math.random() * w,
+              y: Math.random() * h,
+              angle: ang,
+              targetAngle: ang,
+              speed: (0.4 + Math.random() * 0.8) * scaleRes,
+              r: (1.5 + Math.random() * 2.2) * sizeScale,
+              ratio: Math.random(),
+              phase: Math.random() * Math.PI * 2
+            });
+          }
+          if (pList.length > targetCount) pList.length = targetCount;
+
+          pList.forEach(p => {
+            if (beatIntensity > 0.45 && Math.random() < 0.15) {
+              p.targetAngle += (Math.random() - 0.5) * Math.PI;
+            }
+            p.angle += (p.targetAngle - p.angle) * 0.12;
+            const drift = p.angle + Math.sin(t + p.phase) * 0.35;
+            p.x += Math.cos(drift) * p.speed * flowSpeed;
+            p.y += Math.sin(drift) * p.speed * flowSpeed;
+
+            if (p.x < -10) p.x = w + 8;
+            if (p.x > w + 10) p.x = -8;
+            if (p.y < -10) p.y = h + 8;
+            if (p.y > h + 10) p.y = -8;
+
+            const rad = Math.max(1, p.r * (1.0 + beatIntensity * 0.25));
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
+            ctx.fillStyle = getLayerColor(cMode, c1, c2, p.ratio, t, beatIntensity);
+            ctx.globalAlpha = 0.75;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+          });
+        }
+      }
+    });
+
+    animFrameId = requestAnimationFrame(renderFrame);
+  }
+
+  if (animFrameId) cancelAnimationFrame(animFrameId);
+  renderFrame();
+}
+
+function updateCanvasPreview() {
+  previewLayerStates = {};
+}
+
+document.getElementById('btn-schedule').addEventListener('click', async () => {
+  const yt_id = document.getElementById('live-channel').value;
+  const startTime = document.getElementById('live-start').value;
+  const duration = document.getElementById('live-duration').value;
+  const title = document.getElementById('live-title').value.trim();
+  const desc = document.getElementById('live-desc').value;
+  const tags = document.getElementById('live-tags').value;
+  const privacy = document.getElementById('live-privacy').value;
+  const preset = document.getElementById('live-preset').value;
+  const thumb = document.getElementById('live-thumb').value;
+  
+  const audios = Array.from(document.querySelectorAll('.audio-check:checked')).map(cb => cb.value);
+  const bgs = Array.from(document.querySelectorAll('.bg-check:checked')).map(cb => cb.value);
+  
+  if(!yt_id) return alert("Pilih channel target terlebih dahulu!");
+  if(!title) return alert("Isi judul siaran langsung!");
+  if(audios.length === 0) return alert("Pilih minimal 1 lagu!");
+  if(bgs.length === 0) return alert("Pilih minimal 1 background!");
+  if(!startTime) return alert("Tentukan waktu mulai siaran!");
+
+  const btn = document.getElementById('btn-schedule');
+  btn.textContent = "Menyimpan ke Antrean VIP..."; 
+  btn.disabled = true;
+
+  try {
+    const response = await fetch('/api/live/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            yt_id: yt_id, title: title, start_time: startTime, duration_hours: duration,
+            audios: audios, bgs: bgs, desc: desc, tags: tags, privacy: privacy, preset: preset, thumb: thumb
+        })
+    });
+    
+    const res = await response.json();
+    if (!res.success) {
+        alert(res.message);
+        btn.textContent = "⚡ Jadwalkan & Render Base Video"; 
+        btn.disabled = false;
+        return;
+    }
+    
+    closeModal();
+    btn.textContent = "⚡ Jadwalkan & Render Base Video"; 
+    btn.disabled = false;
+    pollLiveStatus();
+
+  } catch (error) {
+    alert("Gagal terhubung ke server VPS!");
+    btn.textContent = "⚡ Jadwalkan & Render Base Video"; 
+    btn.disabled = false;
+  }
+});
+
+async function stopLiveBroadcast(id) {
+    if (!confirm("Hentikan atau batalkan jadwal siaran ini?")) return;
+    try {
+        await fetch('/api/live/stop', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id })
+        });
+        pollLiveStatus();
+    } catch(e) {
+        alert("Gagal mengirim perintah hentikan.");
+    }
+}
+
+async function deleteLiveItem(id) {
+    if (!confirm("Hapus riwayat jadwal ini (beserta file Base Video-nya)?")) return;
+    try {
+        await fetch('/api/live/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id })
+        });
+        pollLiveStatus();
+    } catch(e) {}
+}
+
+function pollLiveStatus() {
+  fetch('/api/live/status').then(r => r.json()).then(data => {
+    const tbody = document.getElementById('live-queue-list');
+    const items = Array.isArray(data) ? data : (data.items || []);
+    const summary = data.summary || {};
+
+    document.getElementById('stat-scheduled').textContent = summary.active_schedules !== undefined ? summary.active_schedules : items.length;
+    document.getElementById('stat-active').textContent = summary.live_now || 0;
+    document.getElementById('stat-viewers').textContent = summary.total_viewers || 0;
+    document.getElementById('stat-likes').textContent = summary.total_likes || 0;
+
+    if (!items.length) {
+       tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-[#64748b]">Belum ada jadwal siaran. Klik tombol <b>"+ Create Live"</b> di kanan atas untuk membuat jadwal baru.</td></tr>`;
+       return;
+    }
+
+    tbody.innerHTML = items.map(item => {
+        const chName = channelsDict[item.yt_id] || item.yt_id || "Channel";
+        const audioCnt = (item.audios || []).length;
+        const bgCnt = (item.bgs || []).length;
+        let statusBadge = '';
+        let actionBtn = '';
+
+        const st = item.status;
+        if (st === 'LIVE') {
+            statusBadge = `<span class="px-2.5 py-1 bg-red-100 text-red-700 border border-red-300 rounded-md text-[10px] font-bold animate-pulse">🔴 ON AIR</span>`;
+            actionBtn = `<button onclick="stopLiveBroadcast('${item.id}')" class="text-red-600 font-bold text-[10px] bg-red-50 px-3 py-1 rounded border border-red-200 hover:bg-red-100">Stop Live</button>`;
+        } else if (st === 'READY_TO_LOCK') {
+            statusBadge = `<span class="px-2.5 py-1 bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-md text-[10px] font-bold">✅ BASE SIAP (BEBAS LOCK)</span>`;
+            actionBtn = `<button onclick="stopLiveBroadcast('${item.id}')" class="text-red-500 font-bold text-[10px] bg-red-50 px-3 py-1 rounded border border-red-200 hover:bg-red-100">Batalkan</button>`;
+        } else if (st === 'WAITING_TO_START') {
+            statusBadge = `<span class="px-2.5 py-1 bg-blue-100 text-blue-700 border border-blue-300 rounded-md text-[10px] font-bold">🔐 LOCK H-15M (SIAP TAYANG)</span>`;
+            actionBtn = `<button onclick="stopLiveBroadcast('${item.id}')" class="text-red-500 font-bold text-[10px] bg-red-50 px-3 py-1 rounded border border-red-200 hover:bg-red-100">Batalkan</button>`;
+        } else if (['QUEUED_RENDER', 'RENDERING_BASE', 'SCHEDULED'].includes(st)) {
+            statusBadge = `<span class="px-2.5 py-1 bg-amber-100 text-amber-800 border border-amber-300 rounded-md text-[10px] font-bold">⚡ RENDER VIP (FACTORY)</span>`;
+            actionBtn = `<button onclick="stopLiveBroadcast('${item.id}')" class="text-red-500 font-bold text-[10px] bg-red-50 px-3 py-1 rounded border border-red-200 hover:bg-red-100">Batalkan</button>`;
+        } else if (st === 'FINISHED' || st === 'STOPPED') {
+            statusBadge = `<span class="px-2.5 py-1 bg-gray-100 text-gray-600 border border-gray-300 rounded-md text-[10px] font-bold">🏁 ${st}</span>`;
+            actionBtn = `<button onclick="deleteLiveItem('${item.id}')" class="text-gray-600 font-bold text-[10px] bg-gray-100 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200">Hapus</button>`;
+        } else {
+            statusBadge = `<span class="px-2.5 py-1 bg-red-50 text-red-600 border border-red-200 rounded-md text-[10px] font-bold">❌ ERROR</span>`;
+            actionBtn = `<button onclick="deleteLiveItem('${item.id}')" class="text-gray-600 font-bold text-[10px] bg-gray-100 px-3 py-1 rounded border border-gray-300 hover:bg-gray-200">Hapus</button>`;
+        }
+
+        return `
+          <tr class="border-b border-[#e2e8f0] hover:bg-[#f8fafc]">
+            <td class="p-3 pl-5 font-bold text-gray-800">${chName}</td>
+            <td class="p-3">
+              <div class="font-bold text-gray-900 truncate max-w-[240px]" title="${item.title}">${item.title}</div>
+              <div class="text-[10px] text-gray-500 font-mono">🎵 ${audioCnt} Lagu · 🖼️ ${bgCnt} BG · 🎨 ${item.preset || 'Acak'}</div>
+            </td>
+            <td class="p-3 font-mono text-xs">${(item.start_time || '').replace('T', ' ')}</td>
+            <td class="p-3 font-mono text-xs">${item.duration_hours} Jam</td>
+            <td class="p-3 font-mono text-xs">
+              <span class="text-red-600 font-bold">👀 ${item.viewers || 0}</span> &middot; 
+              <span class="text-green-600 font-bold">👍 ${item.likes || 0}</span>
+            </td>
+            <td class="p-3">${statusBadge}</td>
+            <td class="p-3 text-right pr-5">${actionBtn}</td>
+          </tr>
+          <tr class="bg-gray-50/80 border-b border-[#e2e8f0]">
+            <td colspan="7" class="p-1.5 pl-5 text-[10px] text-[#64748b] font-mono">↳ Status Mesin: ${item.message || 'Menunggu...'}</td>
+          </tr>
+        `;
+    }).join('');
+
+  }).catch(() => {});
+}
+
+function pollSysStats() {
+  fetch('/api/get_dashboard_stats').then(r => r.json()).then(d => {
+    if(d.sys_cpu !== undefined) {
+      document.getElementById('sys-cpu').textContent = d.sys_cpu + '%';
+      document.getElementById('sys-ram').textContent = d.sys_ram_pct + '%';
+    }
+  }).catch(()=>{});
+}
+
+async function init() {
+    await loadChannels();
+    await loadPresets();
+    pollSysStats();
+    pollLiveStatus();
+    
+    setInterval(pollSysStats, 3000);
+    setInterval(pollLiveStatus, 4000);
+}
+
+init();
+
+const now = new Date();
+now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+document.getElementById('live-start').value = now.toISOString().slice(0,16);
+document.getElementById('live-channel').addEventListener('change', onChannelChange);
+</script>
+</body>
+</html>

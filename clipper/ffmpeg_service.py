@@ -1,10 +1,13 @@
 import os
 import subprocess
+import time
+from core.media import executable, validate_video
+from core.job_state import JobCancelled
 import re
 from datetime import datetime, timedelta
 
 def get_ffmpeg_path():
-    return "/usr/bin/ffmpeg"
+    return executable('ffmpeg')
 
 # =========================================================
 # 🔥 SMART CHOPPER (VERSI TAHAN BANTING) 🔥
@@ -73,8 +76,9 @@ def split_srt_to_words(input_srt, output_srt, max_words=1):
 # =========================================================
 # ⚙️ MESIN RENDER UTAMA
 # =========================================================
-def process_clip_pro(source_path, output_path, start_time, duration, crop_mode, lyric_style, srt_path, use_visualizer, bgm_path=None, audio_mode="bgm", custom_font=""):
+def process_clip_pro(source_path, output_path, start_time, duration, crop_mode, lyric_style, srt_path, use_visualizer, bgm_path=None, audio_mode="bgm", custom_font="", vis_params=None, cancel_callback=None):
     filter_complex = []
+    vis_params = vis_params or {}
     has_bgm = bgm_path and os.path.exists(bgm_path)
     
     if has_bgm:
@@ -105,8 +109,23 @@ def process_clip_pro(source_path, output_path, start_time, duration, crop_mode, 
     last_v_node = "[v_cropped]"
 
     if is_vis and vis_audio_node:
-        filter_complex.append(f"{vis_audio_node}showwaves=s=1080x300:colors=0x00e5ff:mode=cline,format=yuv420p[wave]")
-        filter_complex.append(f"{last_v_node}[wave]overlay=0:H-h[v_vis]")
+        def number(name, default, low, high):
+            return max(low, min(high, int(vis_params.get(name, default))))
+        colors = []
+        for field, default in [('color1', '#00e5ff'), ('color2', '#00e5ff')]:
+            value = str(vis_params.get(field, default)).lstrip('#')
+            if not re.fullmatch(r'[0-9a-fA-F]{6}', value):
+                raise ValueError('Warna visualizer tidak valid.')
+            colors.append('0x' + value)
+        width = number('size', 100, 10, 100) * 1080 // 100
+        height = number('height_scale', 50, 1, 100) * 6
+        bars = number('num_bars', 48, 10, 128)
+        position = number('pos_y', 90, 0, 100)
+        thickness = number('thickness', 5, 1, 100)
+        cell = max(2, width // bars)
+        gap = max(1, cell - min(thickness, cell - 1))
+        filter_complex.append(f"{vis_audio_node}showfreqs=s={bars}x{height}:mode=bar:ascale=log:colors={'|'.join(colors)},scale={width}:{height}:flags=neighbor,drawgrid=w={cell}:h={height}:t={gap}:c=black,format=yuv420p[wave]")
+        filter_complex.append(f"{last_v_node}[wave]overlay=(W-w)/2:(H-h)*{position}/100[v_vis]")
         last_v_node = "[v_vis]"
 
     if lyric_style != "none" and srt_path and os.path.exists(srt_path) and os.path.getsize(srt_path) > 5:
@@ -167,11 +186,27 @@ def process_clip_pro(source_path, output_path, start_time, duration, crop_mode, 
         output_path
     ])
 
+    partial_output = output_path + '.rendering.mp4'
+    command[-1] = partial_output
+    import tempfile
     try:
-        subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        # Drain stderr to a temporary file, so FFmpeg cannot block on a full pipe.
+        with tempfile.TemporaryFile() as errors:
+            proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=errors)
+            try:
+                while proc.poll() is None:
+                    if cancel_callback and cancel_callback():
+                        raise JobCancelled('Dibatalkan')
+                    time.sleep(0.25)
+                if proc.returncode:
+                    raise RuntimeError('FFmpeg gagal merender clip; periksa media dan pengaturan filter.')
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+                proc.wait()
+        validate_video(partial_output)
+        os.replace(partial_output, output_path)
         return output_path
-    except subprocess.CalledProcessError as e:
-        if os.path.exists(output_path):
-            try: os.remove(output_path)
-            except: pass
-        raise Exception(f"FFmpeg Error: {e.stderr.decode('utf-8')}")
+    finally:
+        if os.path.exists(partial_output):
+            os.remove(partial_output)

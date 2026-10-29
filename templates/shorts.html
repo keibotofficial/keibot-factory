@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shorts Studio — KeiBot Hub</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Clash+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#05080d; --surface:#090d14; --card:#0d1520; --card2:#111c2a; --border:#162030; --border2:#1e2e42;
+    --accent:#ffb703; --cyan:#00d4ff; --accent2:#ff4d6d; --green:#00e887; --text:#c8daea; --text2:#7a9ab8; --muted:#3a5470;
+    --font-d:'Clash Display', sans-serif; --font-m:'DM Mono', monospace;
+  }
+  body { background-color: var(--bg); color: #ffffff; font-family: var(--font-d); }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+  .topbar { padding:12px 26px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:14px; background:rgba(9,13,20,.9); backdrop-filter:blur(10px); position:sticky; top:0; z-index:50; }
+  .tb-title { font-size:20px; font-weight:700; color:var(--text); }
+  .tb-sub { font-family:var(--font-m); font-size:10px; color:var(--text2); margin-top:2px; }
+  .tb-right { margin-left:auto; display:flex; align-items:center; gap:10px; }
+  .btn-g { background:transparent; color:var(--text2); border:1px solid var(--border2); border-radius:8px; font-family:var(--font-d); font-size:11px; font-weight:700; cursor:pointer; transition:.15s; text-decoration:none; display:inline-flex; align-items:center; gap:6px; padding:6px 12px; }
+  .btn-g:hover { border-color:var(--accent); color:var(--accent); }
+  .btn-p { background:linear-gradient(135deg, #ffb703, #fb8500); color:#000; border-radius:8px; font-size:11px; font-weight:700; padding:6px 14px; cursor:pointer; transition:.15s; border:none; }
+  .btn-p:hover { filter:brightness(1.1); }
+  .btn-danger { background:rgba(255,77,109,.12); color:var(--accent2); border:1px solid rgba(255,77,109,.3); border-radius:6px; font-size:10px; font-weight:700; padding:4px 10px; cursor:pointer; }
+  .btn-danger:hover { background:var(--accent2); color:#fff; }
+
+  .sys-monitor { display:flex; gap:12px; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:6px 14px; font-family:var(--font-m); }
+  .sm-item { display:flex; flex-direction:column; }
+  .sm-lbl { font-size:8px; color:var(--muted); letter-spacing:.1em; margin-bottom:1px; }
+  .sm-val { font-size:12px; font-weight:700; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; }
+
+  input[type=range] { -webkit-appearance:none; appearance:none; width:100%; height:4px; background:var(--border); border-radius:2px; outline:none; margin-top:4px; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:13px; height:13px; border-radius:50%; background:var(--accent); cursor:pointer; }
+
+  /* KANVAS PREVIEW 9:16 VERTIKAL */
+  .shorts-preview-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 310px;
+    aspect-ratio: 9 / 16;
+    margin: 0 auto;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 2px solid var(--border2);
+    background: #000;
+    box-shadow: 0 12px 35px rgba(0,0,0,0.65);
+  }
+  .shorts-preview-wrap video, .shorts-preview-wrap img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover;
+    display: none;
+  }
+  #shorts_canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2;
+  }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div>
+    <div class="tb-title">⚡ Keibot <span style="color:var(--accent)">Shorts Studio</span></div>
+    <div class="tb-sub">Produksi &amp; Jadwal Upload Vertikal (9:16) — YT Shorts / TikTok / Reels</div>
+  </div>
+  <div class="tb-right">
+    <a href="/tasks" class="btn-g"><span>◈</span> Global Monitor</a>
+    <a href="/hub" class="btn-g"><span>🏠</span> Hub</a>
+    <div class="sys-monitor">
+      <div class="sm-item"><span class="sm-lbl">CPU</span><span class="sm-val" id="sys-cpu" style="color:var(--cyan)">–%</span></div>
+      <div style="width:1px;height:22px;background:var(--border)"></div>
+      <div class="sm-item"><span class="sm-lbl">RAM</span><span class="sm-val" id="sys-ram" style="color:var(--green)">–%</span></div>
+      <div class="sm-item"><span style="font-family:var(--font-m);font-size:9px;color:var(--muted)" id="sys-ram-txt">–/–GB</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-7xl mx-auto p-6">
+
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- ═══════ KOLOM KIRI (7 KOLOM): BATCH SETTING, METADATA, JADWAL & EFEK ═══════ -->
+    <div class="lg:col-span-7 space-y-6">
+
+      <!-- 1. PENGATURAN BATCH & ASET SHORTS -->
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-[#162030]">
+          <h2 class="text-sm font-bold text-[#ffb703] tracking-wider uppercase">1. Konfigurasi Batch &amp; Sumber Aset (9:16)</h2>
+          <span id="asset-badge" class="text-[10px] font-mono text-gray-400">Pilih channel...</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="text-xs font-bold text-[#c8daea]">Channel YouTube Target</label>
+            <select id="bc-channel" onchange="onChannelChange()" class="w-full mt-1.5 bg-[#090d14] border border-[#162030] rounded-lg text-xs px-3 py-2.5 text-white outline-none focus:border-[#ffb703]">
+              <option value="">-- Memuat channel... --</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-xs font-bold text-[#c8daea]">Sumber Audio Musik</label>
+            <select id="bc-audio-source" onchange="updateSchedulePreview()" class="w-full mt-1.5 bg-[#090d14] border border-[#162030] rounded-lg text-xs px-3 py-2.5 text-white outline-none">
+              <option value="non_cid">🎵 Acak dari Audio Non-CID</option>
+              <option value="cid">⚠️ Acak dari Audio CID (Potongan Lagu Populer)</option>
+              <option value="mix">🔀 Campuran Non-CID &amp; CID</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="text-xs font-bold text-[#c8daea]">Jumlah Video Shorts (Batch)</label>
+            <input id="bc-count" type="number" min="1" max="50" value="3" oninput="updateSchedulePreview()" class="w-full mt-1.5 bg-[#090d14] border border-[#162030] rounded-lg text-xs px-3 py-2 text-white font-mono">
+          </div>
+
+          <div>
+            <label class="text-xs font-bold text-[#c8daea]">Durasi per Shorts (Detik)</label>
+            <select id="bc-duration" class="w-full mt-1.5 bg-[#090d14] border border-[#162030] rounded-lg text-xs px-3 py-2 text-[#00e887] font-mono font-bold">
+              <option value="15">15 Detik (Fast Loop)</option>
+              <option value="30" selected>30 Detik (Ideal Shorts)</option>
+              <option value="55">55 Detik (Full Shorts)</option>
+            </select>
+          </div>
+
+          <!-- PLATFORM DISTRIBUSI & FACEBOOK PAGE DROPDOWN -->
+          <div class="md:col-span-2 bg-[#111c2a] border border-[#162030] p-3 rounded-xl mt-2">
+            <label class="text-xs font-bold text-[#c8daea]">Platform Distribusi</label>
+            <div class="flex flex-wrap items-center gap-4 mt-2 text-xs text-[#c8daea]">
+              <label class="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" class="bc-platform accent-[#ffb703]" value="youtube" checked> YT Shorts
+              </label>
+              <div class="flex items-center gap-2">
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" id="check-fb" class="bc-platform accent-[#ffb703]" value="facebook" onchange="toggleFbSelect()"> FB Reels
+                </label>
+                <select id="bc-fb-page" class="hidden bg-[#090d14] border border-[#162030] rounded-lg text-[10px] px-2 py-1 text-white outline-none focus:border-[#ffb703] max-w-[150px]">
+                  <option value="">-- Pilih Page --</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FLOATING CARD SETTING -->
+        <div class="flex flex-wrap items-center justify-between gap-2 bg-[#111c2a] border border-[#162030] px-3.5 py-2.5 rounded-xl">
+          <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-white">
+            <input type="checkbox" id="bc-use-floating-card" checked class="w-4 h-4 accent-[#ffb703]">
+            <span>Tampilkan Glassy Floating Card (Judul Lagu)</span>
+          </label>
+          <select id="bc-floating-card-mode" class="bg-[#090d14] border border-[#162030] text-[#ffb703] text-[11px] font-bold rounded-lg px-2.5 py-1">
+            <option value="intro_5s">⏱️ Muncul di Awal (5 Detik)</option>
+            <option value="full">♾️ Tampil Full Video</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 2. TEMPLATE METADATA YOUTUBE & JADWAL PUBLISH -->
+      <div class="card p-5 space-y-5">
+        <div class="flex items-center justify-between pb-3 border-b border-[#162030]">
+          <div>
+            <h2 class="text-sm font-bold text-[#00e887] tracking-wider uppercase">2. Template Metadata YouTube &amp; 📅 Jadwal Publish</h2>
+            <p class="text-[11px] text-[#7a9ab8]">Atur judul otomatis, deskripsi, tags, dan urutan jam tayang Shorts</p>
+          </div>
+          <span id="title-bank-badge" class="text-[10px] font-mono bg-[#111c2a] border border-[#1e2e42] text-[#00d4ff] px-2.5 py-1 rounded-md">Title Bank: 0 judul</span>
+        </div>
+
+        <!-- BLOK A: TEMPLATE METADATA YOUTUBE -->
+        <div class="space-y-3">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-bold text-[#c8daea]">Mode Judul Shorts</label>
+              <select id="bc-title-mode" onchange="onTitleModeChange()" class="w-full mt-1 bg-[#090d14] border border-[#162030] rounded-lg text-xs px-3 py-2 text-white outline-none focus:border-[#00e887]">
+                <option value="title_bank">🎲 Acak dari Title Bank Channel (+ #Shorts)</option>
+                <option value="audio_name">🎵 Otomatis dari Nama Lagu (+ #Shorts)</option>
+                <option value="custom">✏️ Template Judul Custom (Multi-Baris / Acak)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="text-xs font-bold text-[#c8daea]">Status Privasi Upload</label>
+              <select id="bc-privacy" class="w-full mt-1 bg-[#090d14] border border-[#162030] rounded-lg text-xs px-3 py-2 text-white outline-none focus:border-[#00e887]">
+                <option value="public" selected>🌍 Public (Langsung / Sesuai Jadwal)</option>
+                <option value="unlisted">🔗 Unlisted (Tidak Publik)</option>
+                <option value="private">🔒 Private (Pribadi)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Muncul jika pilih mode Custom atau jika Title Bank kosong -->
+          <div id="custom-title-wrap" class="hidden">
+            <div class="flex justify-between items-center">
+              <label class="text-xs font-bold text-[#ffb703]">Daftar / Template Judul Custom (1 baris = 1 judul)</label>
+              <span class="text-[10px] font-mono text-[#7a9ab8]">Gunakan {no} untuk nomor urut</span>
+            </div>
+            <textarea id="bc-custom-titles" rows="3" oninput="updateSchedulePreview()" placeholder="Contoh:&#10;🔥 Bass Jedag Jedug Paling Enak Buat Santai #Shorts&#10;🎧 Musik Lofi Malam Hari Bikin Tenang #Shorts" class="w-full mt-1 bg-[#090d14] border border-[#162030] rounded-lg text-xs px-3 py-2 text-white outline-none focus:border-[#ffb703] resize-none font-mono"></textarea>
+          </div>
+
+          <div>
+            <div class="flex justify-between items-center">
+              <label class="text-xs font-bold text-[#c8daea]">Template Deskripsi YouTube Shorts</label>
+              <span class="text-[10px] font-mono text-[#7a9ab8]">Pisahkan dengan <code class="text-[#ffb703]">---</code> untuk acak beberapa deskripsi</span>
+            </div>
+            <textarea id="bc-description" rows="3" placeholder="🎧 Selamat mendengarkan! Jangan lupa Like, Comment & Subscribe.&#10;&#10;#Shorts #Music #JedagJedug #ViralShorts" class="w-full mt-1 bg-[#090d14] border border-[#162030] rounded-lg text-xs px-3 py-2 text-white outline-none focus:border-[#00e887] resize-none">🎧 Jangan lupa Like & Subscribe untuk update musik pendek setiap hari!
+
+#Shorts #YouTubeShorts #MusicVisualizer #FYP</textarea>
+          </div>
+
+          <div>
+            <label class="text-xs font-bold text-[#c8daea]">Tags YouTube (Pisahkan dengan koma)</label>
+            <input id="bc-tags" type="text" value="shorts, youtube shorts, music shorts, visualizer, jedag jedug, fyp" placeholder="shorts, music, viral, fyp" class="w-full mt-1 bg-[#090d14] border border-[#162030] rounded-lg text-xs px-3 py-2 text-white outline-none focus:border-[#00e887] font-mono">
+          </div>
+        </div>
+
+        <!-- BLOK B: 📅 JADWAL PUBLISH -->
+        <div class="pt-4 border-t border-[#162030] space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold text-[#ffb703] uppercase tracking-wider">📅 Jadwal Publish (Auto-Scheduler)</h3>
+            <button type="button" onclick="resetStartDateToNow()" class="text-[10px] font-mono text-[#00d4ff] hover:underline">⏱️ Set ke Waktu Sekarang</button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-bold text-[#c8daea]">Waktu Mulai Tayang (Shorts #1)</label>
+              <input type="datetime-local" id="bc-start-date" onchange="updateSchedulePreview()" class="w-full mt-1 bg-[#090d14] border border-[#162030] rounded-lg text-xs px-3 py-2 text-white font-mono outline-none focus:border-[#ffb703]">
+            </div>
+
+            <div>
+              <label class="text-xs font-bold text-[#c8daea]">Jeda / Interval Antar Shorts</label>
+              <select id="bc-interval-hours" onchange="updateSchedulePreview()" class="w-full mt-1 bg-[#090d14] border border-[#162030] rounded-lg text-xs px-3 py-2 text-[#00d4ff] font-mono font-bold outline-none focus:border-[#ffb703]">
+                <option value="0">⚡ Langsung Tayang Semua (Tanpa Jeda)</option>
+                <option value="1">Tiap 1 Jam</option>
+                <option value="2">Tiap 2 Jam</option>
+                <option value="3">Tiap 3 Jam (8x Sehari)</option>
+                <option value="4">Tiap 4 Jam (6x Sehari)</option>
+                <option value="6" selected>Tiap 6 Jam (4x Sehari — Ideal)</option>
+                <option value="8">Tiap 8 Jam (3x Sehari)</option>
+                <option value="12">Tiap 12 Jam (2x Sehari)</option>
+                <option value="24">Tiap 24 Jam (1x Sehari)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- KOTAK PREVIEW URUTAN JADWAL & JUDUL -->
+          <div class="bg-[#090d14] border border-[#162030] rounded-xl p-3">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[10px] font-mono text-[#7a9ab8] uppercase">📋 Preview Rencana Jadwal &amp; Judul Batch</span>
+              <button type="button" onclick="reshuffleTitles()" class="text-[10px] font-bold text-[#ffb703] hover:underline">🎲 Acak Ulang Judul</button>
+            </div>
+            <div id="schedule-preview-list" class="space-y-1.5 max-h-[135px] overflow-y-auto font-mono text-[11px]"></div>
+          </div>
+        </div>
+
+        <button id="bc-start" class="w-full py-3 rounded-xl bg-gradient-to-r from-[#ffb703] to-[#fb8500] hover:brightness-110 text-black text-sm font-bold transition shadow-lg">
+          ⚡ MULAI BATCH RENDER &amp; JADWALKAN SHORTS
+        </button>
+        <p id="bc-message" class="text-xs mt-2 text-center font-mono"></p>
+      </div>
+
+      <!-- 3. MANAJER EFEK & VISUALIZER (IDENTIK DENGAN FACTORY V2.0) -->
+      <div class="card p-5">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4 pb-3 border-b border-[#162030]">
+          <div>
+            <h2 class="text-sm font-bold text-[#00d4ff] tracking-wider uppercase">3. Tumpukan Efek &amp; Visualizer (Layers)</h2>
+            <p class="text-[11px] text-[#7a9ab8]">Pengaturan dan preset 100% kompatibel dengan Studio Factory</p>
+          </div>
+          <div class="flex gap-2">
+            <button type="button" class="btn-g" onclick="importVisPreset()">📥 Import</button>
+            <button type="button" class="btn-g" onclick="exportVisPreset()">📤 Export</button>
+          </div>
+        </div>
+
+        <!-- TAMBAH LAYER -->
+        <div class="flex gap-2 mb-4">
+          <select id="new-layer-type" class="flex-1 bg-[#090d14] border border-[#162030] rounded-lg text-xs px-3 py-2 text-white">
+            <option value="Visualizer (Bar Bawah)">Bar Bawah 📊</option>
+            <option value="Visualizer (Radial Bar Biasa)">Radial Bar (Tengah + Profil) 🔄</option>
+            <option value="Visualizer (Waveform Garis)">Waveform Garis 〰️</option>
+            <option value="Zoom Jedag-Jedug">Zoom Jedag-Jedug (BG) 💥</option>
+            <option value="Glitch Beat">Glitch Beat (BG) ⚡</option>
+            <option value="Color Boost (CapCut Vibe)">Color Boost (BG) 🎨</option>
+            <option value="Visualizer (Particle Burst)">Partikel Melayang (Flow + Beat) ✨</option>
+          </select>
+          <button type="button" class="btn-p" onclick="addEffectLayer()">+ Tambah Efek</button>
+        </div>
+
+        <!-- DAFTAR LAYER -->
+        <div id="layers-container" class="space-y-3 mb-4"></div>
+
+        <!-- PRESET MANAGER -->
+        <div class="flex flex-wrap items-center gap-2 pt-3 border-t border-[#162030]">
+          <button type="button" class="btn-g" onclick="saveVisPreset()">💾 Simpan Preset</button>
+          <select id="vis-preset-load" onchange="loadVisPreset(this.value)" class="bg-[#090d14] border border-[#162030] rounded-lg text-xs px-3 py-1.5 text-white flex-1">
+            <option value="">-- Load Preset Tersimpan --</option>
+          </select>
+          <button type="button" class="btn-danger" onclick="deleteVisPreset()">🗑 Hapus</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ═══════ KOLOM KANAN (5 KOLOM): LIVE PREVIEW REAL-TIME 9:16 & ANTREAN ═══════ -->
+    <div class="lg:col-span-5 space-y-6">
+
+      <!-- LIVE PREVIEW REAL-TIME -->
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h2 class="text-sm font-bold text-white">🎵 Real-Time Live Preview (9:16)</h2>
+            <p class="text-[10px] text-[#7a9ab8]">Sinkronisasi langsung dari folder BG Shorts (9:16)</p>
+          </div>
+          <button type="button" onclick="shufflePreviewBg()" class="btn-g" title="Ganti sample background">🎲 Acak BG</button>
+        </div>
+
+        <!-- PILIH AUDIO TEST -->
+        <div class="bg-[#111c2a] border border-[#162030] rounded-xl p-3 mb-4">
+          <select id="preview-audio-select" class="w-full bg-[#090d14] border border-[#162030] rounded-lg text-xs px-2.5 py-2 text-white mb-2.5">
+            <option value="">-- Pilih lagu dari gallery untuk test --</option>
+          </select>
+          <div class="flex items-center gap-2">
+            <button type="button" id="preview-play-btn" onclick="startAudioPreview()" class="flex-1 py-1.5 rounded-lg bg-[#00e887] text-black text-xs font-bold hover:brightness-110 transition">▶ Play Live</button>
+            <button type="button" id="preview-stop-btn" onclick="stopAudioPreview()" disabled class="flex-1 py-1.5 rounded-lg bg-[#ff4d6d]/20 text-[#ff4d6d] border border-[#ff4d6d]/30 text-xs font-bold disabled:opacity-40">⏹ Stop</button>
+          </div>
+          <div id="preview-status" class="text-[10px] text-[#7a9ab8] font-mono mt-1.5 text-center">Siap diputar...</div>
+        </div>
+
+        <!-- LAYAR KANVAS 9:16 -->
+        <div class="shorts-preview-wrap" id="preview-container">
+          <video id="preview_bg_vid" loop muted playsinline></video>
+          <img id="preview_bg_img" alt="bg">
+          <canvas id="shorts_canvas" width="360" height="640"></canvas>
+        </div>
+      </div>
+
+      <!-- MINI ANTREAN SHORTS -->
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-3 pb-2 border-b border-[#162030]">
+          <h2 class="text-sm font-bold">⚡ Antrean Shorts Aktif</h2>
+          <button id="tm-clear" class="text-[10px] text-[#ff8ba0] hover:text-[#ff4d6d] font-bold">🧹 Clear</button>
+        </div>
+        <div id="tm-list" class="space-y-2.5 max-h-[280px] overflow-y-auto">
+          <p class="text-[#3a5470] text-xs text-center py-4 font-mono">Belum ada job Shorts.</p>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<script>
+
+// Memuat daftar Global Facebook Pages
+async function loadFbPagesDropdown() {
+  try {
+    const res = await fetch('/api/get_fb_pages');
+    const pages = await res.json();
+    const selFb = document.getElementById('bc-fb-page');
+    
+    if (!pages || pages.length === 0) {
+      selFb.innerHTML = '<option value="">-- Tidak ada Page --</option>';
+      return;
+    }
+    
+    selFb.innerHTML = '<option value="">-- Pilih FB Page --</option>' + 
+      pages.map(p => `<option value="${p.page_id}">${p.name}</option>`).join('');
+  } catch (e) {
+    console.error("Gagal memuat FB Pages", e);
+  }
+}
+
+// Menampilkan/menyembunyikan dropdown FB Page saat checkbox dicentang
+function toggleFbSelect() {
+  const cb = document.getElementById('check-fb');
+  const selFb = document.getElementById('bc-fb-page');
+  if (cb.checked) {
+    selFb.classList.remove('hidden');
+    // Jika dropdown masih kosong/default, coba muat ulang
+    if(selFb.options.length <= 1) loadFbPagesDropdown();
+  } else {
+    selFb.classList.add('hidden');
+  }
+}
+
+// ────────────────────────────────────────────────────────
+//  STATE & GALLERY CACHE
+// ────────────────────────────────────────────────────────
+let channels = [];
+let galleryData = { audio_non_cid: [], audio_cid: [], background: [], shorts_bg: [], shorts_thumb: [], base_video: [] };
+let effectLayers = [];
+let visPresets = JSON.parse(localStorage.getItem('wp_presets') || '{}');
+const centerLogo = new Image();
+centerLogo.crossOrigin = "anonymous";
+
+let visCanvas = document.getElementById('shorts_canvas');
+let vCtx = visCanvas.getContext('2d');
+
+// Audio WebAPI State
+let previewAudioContext = null;
+let previewAudioElement = null;
+let previewSourceNode = null;
+let previewAnalyserNode = null;
+let isPreviewPlaying = false;
+let realtimeBars = new Array(64).fill(0);
+
+// Cache rencana jadwal & judul
+let plannedTitles = [];
+let plannedDates = [];
+let titleShuffleSeed = 0;
+
+// ────────────────────────────────────────────────────────
+//  INIT TANGGAL DEFAULT & HELPER JADWAL PUBLISH
+// ────────────────────────────────────────────────────────
+function resetStartDateToNow() {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('bc-start-date').value = now.toISOString().slice(0, 16);
+  updateSchedulePreview();
+}
+
+function onTitleModeChange() {
+  const mode = document.getElementById('bc-title-mode').value;
+  const wrap = document.getElementById('custom-title-wrap');
+  if (mode === 'custom') {
+    wrap.classList.remove('hidden');
+  } else {
+    wrap.classList.add('hidden');
+  }
+  updateSchedulePreview();
+}
+
+function reshuffleTitles() {
+  titleShuffleSeed = Math.floor(Math.random() * 100000);
+  updateSchedulePreview();
+}
+
+function cleanAudioFilename(name) {
+  let clean = String(name || '').replace(/\.(mp3|wav|mp4|m4a)$/i, '');
+  clean = clean.replace(/\[.*?\]|\(.*?\)/g, '').replace(/^\d+[\.\)\-\s_]+/, '').trim();
+  return clean || 'Shorts Music';
+}
+
+function ensureShortsHashtag(title) {
+  let t = String(title || '').trim();
+  if (!t) t = '🔥 Daily Music Vibes';
+  if (!/#shorts/i.test(t)) {
+    t = `${t} #Shorts`;
+  }
+  return t.slice(0, 100);
+}
+
+function updateSchedulePreview() {
+  const yt_id = document.getElementById('bc-channel').value;
+  const count = Math.max(1, parseInt(document.getElementById('bc-count').value || '1'));
+  const intervalHours = parseFloat(document.getElementById('bc-interval-hours').value || '0');
+  const startVal = document.getElementById('bc-start-date').value;
+  const titleMode = document.getElementById('bc-title-mode').value;
+  const audioSource = document.getElementById('bc-audio-source').value;
+
+  const ch = channels.find(c => c.yt_id === yt_id);
+  const titleBank = (ch && Array.isArray(ch.title_bank)) ? ch.title_bank : [];
+  document.getElementById('title-bank-badge').textContent = `Title Bank: ${titleBank.length} judul`;
+
+  // Kumpulkan daftar audio sesuai filter sumber
+  let audioPool = [];
+  if (audioSource === 'non_cid') audioPool = galleryData.audio_non_cid || [];
+  else if (audioSource === 'cid') audioPool = galleryData.audio_cid || [];
+  else audioPool = [...(galleryData.audio_non_cid || []), ...(galleryData.audio_cid || [])];
+
+  // Kumpulkan baris custom
+  const customLines = (document.getElementById('bc-custom-titles').value || '')
+    .split('\n')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  let baseDate = startVal ? new Date(startVal) : new Date();
+  if (isNaN(baseDate.getTime())) baseDate = new Date();
+
+  plannedTitles = [];
+  plannedDates = [];
+
+  for (let i = 0; i < count; i++) {
+    // 1. Hitung jadwal jam tayang
+    const itemDate = new Date(baseDate.getTime() + (i * intervalHours * 3600 * 1000));
+    const yyyy = itemDate.getFullYear();
+    const mm = String(itemDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(itemDate.getDate()).padStart(2, '0');
+    const hh = String(itemDate.getHours()).padStart(2, '0');
+    const min = String(itemDate.getMinutes()).padStart(2, '0');
+    const formattedDate = `${yyyy}-${mm}-${dd} ${hh}:${min}`;
+    plannedDates.push(formattedDate);
+
+    // 2. Tentukan judul per video
+    let rawTitle = '';
+    if (titleMode === 'title_bank' && titleBank.length > 0) {
+      const idx = (i + titleShuffleSeed) % titleBank.length;
+      rawTitle = titleBank[idx];
+    } else if (titleMode === 'audio_name' && audioPool.length > 0) {
+      const idx = (i + titleShuffleSeed) % audioPool.length;
+      rawTitle = `🎵 ${cleanAudioFilename(audioPool[idx].name)}`;
+    } else if (customLines.length > 0) {
+      const idx = (i + titleShuffleSeed) % customLines.length;
+      rawTitle = customLines[idx].replace(/\{no\}/gi, String(i + 1));
+    } else if (audioPool.length > 0) {
+      const idx = (i + titleShuffleSeed) % audioPool.length;
+      rawTitle = `🎵 ${cleanAudioFilename(audioPool[idx].name)}`;
+    } else {
+      rawTitle = `🔥 Music Shorts Vibes #${i + 1}`;
+    }
+
+    plannedTitles.push(ensureShortsHashtag(rawTitle));
+  }
+
+  const previewEl = document.getElementById('schedule-preview-list');
+  previewEl.innerHTML = plannedTitles.map((t, idx) => `
+    <div class="flex items-center justify-between gap-2 bg-[#111c2a] border border-[#162030] px-2.5 py-1.5 rounded-lg">
+      <div class="truncate text-white"><span class="text-[#ffb703] font-bold mr-1.5">#${idx + 1}</span>${t}</div>
+      <span class="text-[10px] text-[#00e887] shrink-0">${plannedDates[idx]}</span>
+    </div>
+  `).join('');
+}
+
+// ────────────────────────────────────────────────────────
+//  LOAD CHANNELS & GALLERY ASSETS (MURNI SHORTS_BG)
+// ────────────────────────────────────────────────────────
+async function loadChannels() {
+  try {
+    const res = await fetch('/api/get_channels');
+    channels = await res.json();
+    const sel = document.getElementById('bc-channel');
+    if (!channels.length) {
+      sel.innerHTML = '<option value="">-- Belum ada channel --</option>';
+      return;
+    }
+    sel.innerHTML = channels.map(c => `<option value="${c.yt_id}">${c.name}</option>`).join('');
+    onChannelChange();
+  } catch (e) {}
+}
+
+async function onChannelChange() {
+  const yt_id = document.getElementById('bc-channel').value;
+  stopAudioPreview();
+  if (!yt_id) return;
+
+  const ch = channels.find(c => c.yt_id === yt_id);
+  centerLogo.src = (ch && ch.thumbnail) ? ch.thumbnail : '/static/logo.png';
+
+  try {
+    const res = await fetch(`/api/get_gallery?yt_id=${yt_id}`);
+    galleryData = await res.json();
+    const nonCid = (galleryData.audio_non_cid || []).length;
+    const cid = (galleryData.audio_cid || []).length;
+    const bgSht = (galleryData.shorts_bg || []).length;
+    const thSht = (galleryData.shorts_thumb || []).length;
+
+    document.getElementById('asset-badge').textContent = `🎵 ${nonCid + cid} Audio · 📐 ${bgSht} BG Shorts · 📱 ${thSht} Thumb Shorts`;
+
+    const selAudio = document.getElementById('preview-audio-select');
+    let opts = '<option value="">-- Pilih lagu untuk Live Preview --</option>';
+    (galleryData.audio_non_cid || []).forEach(a => {
+      opts += `<option value="/uploads/${yt_id}/audio_non_cid/${encodeURIComponent(a.name)}">🎵 [Non-CID] ${a.name}</option>`;
+    });
+    (galleryData.audio_cid || []).forEach(a => {
+      opts += `<option value="/uploads/${yt_id}/audio_cid/${encodeURIComponent(a.name)}">⚠️ [CID] ${a.name}</option>`;
+    });
+    selAudio.innerHTML = opts;
+
+    shufflePreviewBg();
+    updateSchedulePreview();
+  } catch (e) {}
+}
+
+function shufflePreviewBg() {
+  const yt_id = document.getElementById('bc-channel').value;
+  const bgVid = document.getElementById('preview_bg_vid');
+  const bgImg = document.getElementById('preview_bg_img');
+  if (!yt_id) return;
+
+  const files = galleryData.shorts_bg || [];
+
+  if (!files.length) {
+    bgVid.pause();
+    bgVid.removeAttribute('src');
+    bgVid.style.display = 'none';
+    bgImg.removeAttribute('src');
+    bgImg.style.display = 'none';
+    return;
+  }
+
+  const pick = files[Math.floor(Math.random() * files.length)].name;
+  const ext = pick.split('.').pop().toLowerCase();
+  const url = `/uploads/${yt_id}/shorts_bg/${encodeURIComponent(pick)}`;
+
+  if (['mp4', 'webm', 'mov'].includes(ext)) {
+    bgImg.removeAttribute('src');
+    bgImg.style.display = 'none';
+    bgVid.src = url;
+    bgVid.style.display = 'block';
+    bgVid.play().catch(() => {});
+  } else {
+    bgVid.pause();
+    bgVid.removeAttribute('src');
+    bgVid.style.display = 'none';
+    bgImg.src = url;
+    bgImg.style.display = 'block';
+  }
+}
+
+// ────────────────────────────────────────────────────────
+//  AUDIO PREVIEW ENGINE (WEB AUDIO API)
+// ────────────────────────────────────────────────────────
+async function startAudioPreview() {
+  const audioUrl = document.getElementById('preview-audio-select').value;
+  if (!audioUrl) {
+    document.getElementById('preview-status').textContent = '⚠️ Pilih lagu dulu dari daftar di atas!';
+    return;
+  }
+  stopAudioPreview();
+  try {
+    if (!previewAudioContext) previewAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    previewAudioElement = new Audio(audioUrl);
+    previewAudioElement.crossOrigin = "anonymous";
+    previewSourceNode = previewAudioContext.createMediaElementSource(previewAudioElement);
+    previewAnalyserNode = previewAudioContext.createAnalyser();
+    previewAnalyserNode.fftSize = 1024;
+    previewAnalyserNode.smoothingTimeConstant = 0.25;
+    previewSourceNode.connect(previewAnalyserNode);
+    previewAnalyserNode.connect(previewAudioContext.destination);
+
+    await previewAudioContext.resume();
+    await previewAudioElement.play();
+    isPreviewPlaying = true;
+
+    document.getElementById('preview-status').textContent = '🎵 Memutar Live Preview...';
+    document.getElementById('preview-play-btn').disabled = true;
+    document.getElementById('preview-stop-btn').disabled = false;
+
+    function pumpFreq() {
+      if (!isPreviewPlaying || !previewAnalyserNode) return;
+      const freq = new Uint8Array(previewAnalyserNode.frequencyBinCount);
+      previewAnalyserNode.getByteFrequencyData(freq);
+      const step = Math.max(1, Math.floor(freq.length / 64));
+      for (let i = 0; i < 64; i++) {
+        let sum = 0;
+        for (let j = 0; j < step; j++) sum += freq[i * step + j] || 0;
+        realtimeBars[i] = Math.min(1, (sum / step / 255) * 1.8);
+      }
+      requestAnimationFrame(pumpFreq);
+    }
+    pumpFreq();
+  } catch (e) {
+    document.getElementById('preview-status').textContent = '❌ Gagal memutar: ' + e.message;
+    stopAudioPreview();
+  }
+}
+
+function stopAudioPreview() {
+  if (previewAudioElement) { previewAudioElement.pause(); previewAudioElement.src = ''; previewAudioElement = null; }
+  if (previewSourceNode) { try { previewSourceNode.disconnect(); } catch(e){} previewSourceNode = null; }
+  if (previewAnalyserNode) { try { previewAnalyserNode.disconnect(); } catch(e){} previewAnalyserNode = null; }
+  isPreviewPlaying = false;
+  document.getElementById('preview-status').textContent = 'Preview dihentikan';
+  document.getElementById('preview-play-btn').disabled = false;
+  document.getElementById('preview-stop-btn').disabled = true;
+  realtimeBars.fill(0);
+}
+
+// ────────────────────────────────────────────────────────
+//  MANAJER EFEK & PRESET (100% SAMA DENGAN FACTORY)
+// ────────────────────────────────────────────────────────
+function addEffectLayer() {
+  const type = document.getElementById('new-layer-type').value;
+  let newLayer = { id: `${type}_${Date.now()}`, name: type, intensity: 50 };
+
+  if (type.includes('Particle')) {
+    newLayer.color1 = '#ffb703'; newLayer.color2 = '#00d4ff';
+    newLayer.color_mode = 'Solid / Gradien';
+    newLayer.part_count = 55; newLayer.size = 50;
+    newLayer.flow_speed = 40; newLayer.intensity = 65;
+    newLayer.part_style = 'flow_beat';
+  } else if (type.includes('Visualizer')) {
+    newLayer.color1 = '#ffb703'; newLayer.color2 = '#00d4ff';
+    newLayer.color_mode = 'Solid / Gradien';
+    newLayer.size = 75; newLayer.thickness = 35;
+    newLayer.pos_x = 50; newLayer.pos_y = 82;
+    newLayer.num_bars = 48; newLayer.height_scale = 45;
+    newLayer.flow_speed = 80; newLayer.bar_gap = 3;
+    if (type.includes('Radial Bar')) {
+      newLayer.pos_y = 50; newLayer.size = 65; newLayer.use_logo = true;
+    }
+  } else if (type === 'Color Boost (CapCut Vibe)') {
+    newLayer.intensity = 30;
+  }
+  effectLayers.push(newLayer);
+  renderEffectLayers();
+}
+
+function updateLayer(id, key, val) {
+  const idx = effectLayers.findIndex(l => l.id === id);
+  if (idx > -1) effectLayers[idx][key] = val;
+}
+
+function removeLayer(id) {
+  effectLayers = effectLayers.filter(l => l.id !== id);
+  renderEffectLayers();
+}
+
+function renderEffectLayers() {
+  const cont = document.getElementById('layers-container');
+  if (!effectLayers.length) {
+    cont.innerHTML = `<div class="rounded-xl border border-dashed border-[#162030] p-6 text-center text-xs text-[#3a5470]">Belum ada lapisan efek. Pilih dari dropdown di atas lalu klik "+ Tambah Efek".</div>`;
+    return;
+  }
+  cont.innerHTML = effectLayers.map((layer, index) => {
+    let controlsHtml = '';
+    if (layer.name.includes('Particle')) {
+      controlsHtml = `
+        <div class="flex gap-3 mt-2 items-center">
+          <div><span class="text-[9px] text-gray-400">Warna 1</span><br><input type="color" value="${layer.color1}" onchange="updateLayer('${layer.id}','color1',this.value)" class="w-10 h-6 cursor-pointer bg-transparent"></div>
+          <div><span class="text-[9px] text-gray-400">Warna 2</span><br><input type="color" value="${layer.color2}" onchange="updateLayer('${layer.id}','color2',this.value)" class="w-10 h-6 cursor-pointer bg-transparent"></div>
+          <div class="flex-1"><span class="text-[9px] text-[#ffb703]">Ukuran (${layer.size || 50}%)</span><input type="range" min="10" max="150" value="${layer.size || 50}" oninput="updateLayer('${layer.id}','size',parseFloat(this.value));this.previousSibling.textContent='Ukuran ('+this.value+'%)'"></div>
+        </div>
+        <div class="flex gap-3 mt-2">
+          <div class="flex-1"><span class="text-[9px] text-[#00d4ff]">Jumlah (${layer.part_count || 55})</span><input type="range" min="10" max="180" value="${layer.part_count || 55}" oninput="updateLayer('${layer.id}','part_count',parseFloat(this.value));this.previousSibling.textContent='Jumlah ('+this.value+')'"></div>
+          <div class="flex-1"><span class="text-[9px] text-[#00d4ff]">Kecepatan Flow (${layer.flow_speed || 40}%)</span><input type="range" min="5" max="100" value="${layer.flow_speed || 40}" oninput="updateLayer('${layer.id}','flow_speed',parseFloat(this.value));this.previousSibling.textContent='Kecepatan Flow ('+this.value+'%)'"></div>
+        </div>
+        <div class="flex gap-3 mt-2 items-center">
+          <div class="flex-1"><span class="text-[9px] text-gray-400">Belok Saat Beat (${layer.intensity || 65}%)</span><input type="range" min="0" max="100" value="${layer.intensity || 65}" oninput="updateLayer('${layer.id}','intensity',parseFloat(this.value));this.previousSibling.textContent='Belok Saat Beat ('+this.value+'%)'"></div>
+          <div class="flex-1">
+            <span class="text-[9px] text-gray-400">Gaya Partikel:</span>
+            <select onchange="updateLayer('${layer.id}','part_style',this.value)" class="w-full bg-[#090d14] border border-[#162030] rounded text-[10px] px-2 py-1 text-white">
+              <option value="flow_beat" ${layer.part_style !== 'beat_spawn' ? 'selected' : ''}>🌊 Melayang + Belok Saat Beat</option>
+              <option value="beat_spawn" ${layer.part_style === 'beat_spawn' ? 'selected' : ''}>💥 Muncul Acak Saat Beat</option>
+            </select>
+          </div>
+        </div>`;
+    } else if (layer.name.includes('Visualizer')) {
+      controlsHtml = `
+        <div class="flex gap-3 mt-2 items-center">
+          <div><span class="text-[9px] text-gray-400">Warna 1</span><br><input type="color" value="${layer.color1}" onchange="updateLayer('${layer.id}','color1',this.value)" class="w-10 h-6 cursor-pointer bg-transparent"></div>
+          <div><span class="text-[9px] text-gray-400">Warna 2</span><br><input type="color" value="${layer.color2}" onchange="updateLayer('${layer.id}','color2',this.value)" class="w-10 h-6 cursor-pointer bg-transparent"></div>
+          <div class="flex-1"><span class="text-[9px] text-gray-400">Lebar/Ukuran (${layer.size || 75}%)</span><input type="range" min="10" max="150" value="${layer.size || 75}" oninput="updateLayer('${layer.id}','size',parseFloat(this.value));this.previousSibling.textContent='Lebar/Ukuran ('+this.value+'%)'"></div>
+        </div>
+        <div class="flex gap-3 mt-2">
+          <div class="flex-1"><span class="text-[9px] text-gray-400">Intensitas Bass (${layer.intensity || 50}%)</span><input type="range" min="0" max="100" value="${layer.intensity || 50}" oninput="updateLayer('${layer.id}','intensity',parseFloat(this.value));this.previousSibling.textContent='Intensitas Bass ('+this.value+'%)'"></div>
+          <div class="flex-1"><span class="text-[9px] text-gray-400">Ketebalan (${layer.thickness || 35}%)</span><input type="range" min="5" max="100" value="${layer.thickness || 35}" oninput="updateLayer('${layer.id}','thickness',parseFloat(this.value));this.previousSibling.textContent='Ketebalan ('+this.value+'%)'"></div>
+        </div>
+        <div class="flex gap-3 mt-2">
+          <div class="flex-1"><span class="text-[9px] text-[#00d4ff]">Jumlah Bar (${layer.num_bars || 48})</span><input type="range" min="10" max="96" value="${layer.num_bars || 48}" oninput="updateLayer('${layer.id}','num_bars',parseFloat(this.value));this.previousSibling.textContent='Jumlah Bar ('+this.value+')'"></div>
+          <div class="flex-1"><span class="text-[9px] text-[#00d4ff]">Jarak Bar (${layer.bar_gap ?? 3}px)</span><input type="range" min="0" max="20" value="${layer.bar_gap ?? 3}" oninput="updateLayer('${layer.id}','bar_gap',parseFloat(this.value));this.previousSibling.textContent='Jarak Bar ('+this.value+'px)'"></div>
+        </div>
+        <div class="flex gap-3 mt-2">
+          <div class="flex-1"><span class="text-[9px] text-[#00d4ff]">Tinggi Max (${layer.height_scale || 45}%)</span><input type="range" min="10" max="150" value="${layer.height_scale || 45}" oninput="updateLayer('${layer.id}','height_scale',parseFloat(this.value));this.previousSibling.textContent='Tinggi Max ('+this.value+'%)'"></div>
+          <div class="flex-1"><span class="text-[9px] text-gray-400">Posisi X (${layer.pos_x || 50}%)</span><input type="range" min="0" max="100" value="${layer.pos_x || 50}" oninput="updateLayer('${layer.id}','pos_x',parseFloat(this.value));this.previousSibling.textContent='Posisi X ('+this.value+'%)'"></div>
+          <div class="flex-1"><span class="text-[9px] text-gray-400">Posisi Y (${layer.pos_y || 82}%)</span><input type="range" min="0" max="100" value="${layer.pos_y || 82}" oninput="updateLayer('${layer.id}','pos_y',parseFloat(this.value));this.previousSibling.textContent='Posisi Y ('+this.value+'%)'"></div>
+        </div>
+        <div class="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-[#162030]">
+          <select onchange="updateLayer('${layer.id}','color_mode',this.value)" class="bg-[#090d14] border border-[#162030] rounded text-[10px] px-2 py-1 text-white">
+            <option value="Solid / Gradien" ${layer.color_mode === 'Solid / Gradien' ? 'selected' : ''}>Solid / Gradien</option>
+            <option value="Dual-Color Flash" ${layer.color_mode === 'Dual-Color Flash' ? 'selected' : ''}>Dual-Color Flash</option>
+            <option value="Dynamic RGB Shift" ${layer.color_mode === 'Dynamic RGB Shift' ? 'selected' : ''}>Dynamic RGB Pelangi</option>
+          </select>
+          ${layer.name.includes('Radial Bar') ? `
+          <label class="flex items-center gap-1.5 text-[10px] text-[#ffb703] font-bold cursor-pointer">
+            <input type="checkbox" ${layer.use_logo !== false ? 'checked' : ''} onchange="updateLayer('${layer.id}','use_logo',this.checked)" class="accent-[#ffb703]">
+            🖼️ Foto Profil di Tengah
+          </label>` : ''}
+        </div>`;
+    } else {
+      controlsHtml = `
+        <div class="mt-2">
+          <span class="text-[9px] text-gray-400">Kekuatan Efek (${layer.intensity || 50}%)</span>
+          <input type="range" min="0" max="100" value="${layer.intensity || 50}" oninput="updateLayer('${layer.id}','intensity',parseFloat(this.value));this.previousSibling.textContent='Kekuatan Efek ('+this.value+'%)'">
+        </div>`;
+    }
+
+    return `
+      <div class="bg-[#111c2a] border border-[#162030] border-l-2 border-l-[#ffb703] p-3 rounded-xl">
+        <div class="flex justify-between items-center">
+          <span class="text-xs font-bold text-white"><span class="text-gray-500 mr-1">#${index + 1}</span> ${layer.name}</span>
+          <button class="btn-danger" onclick="removeLayer('${layer.id}')">✕ Hapus</button>
+        </div>
+        ${controlsHtml}
+      </div>`;
+  }).join('');
+}
+
+// ────────────────────────────────────────────────────────
+//  DRAW LIVE PREVIEW 9:16 (MURNI SHORTS_BG)
+// ────────────────────────────────────────────────────────
+function drawShortsPreview() {
+  const ctx = vCtx;
+  const cw = visCanvas.width;
+  const ch = visCanvas.height;
+
+  let rawBass = 0;
+  if (isPreviewPlaying) {
+    let maxB = 0, sumB = 0;
+    for (let i = 0; i < 5; i++) {
+      let v = (realtimeBars[i] || 0) / 1.5;
+      if (v > maxB) maxB = v;
+      sumB += v;
+    }
+    rawBass = Math.min(1.0, (maxB * 0.65) + ((sumB / 5.0) * 0.35));
+  }
+  if (window.sFastBass === undefined) { window.sFastBass = 0; window.sSlowBass = 0; window.sPunch = 0; }
+  if (!isPreviewPlaying) {
+    window.sFastBass = 0; window.sSlowBass = 0; window.sPunch = 0;
+  } else {
+    window.sFastBass = rawBass > window.sFastBass ? (window.sFastBass * 0.2 + rawBass * 0.8) : (window.sFastBass * 0.75 + rawBass * 0.25);
+    window.sSlowBass = (window.sSlowBass * 0.92) + (rawBass * 0.08);
+    let onset = Math.max(0, window.sFastBass - (window.sSlowBass * 0.85));
+    let rawPunch = Math.min(1.0, (onset * 3.2) + Math.pow(rawBass, 3.0) * 0.6);
+    window.sPunch = rawPunch > window.sPunch ? (window.sPunch * 0.35 + rawPunch * 0.65) : (window.sPunch * 0.82 + rawPunch * 0.18);
+  }
+  const beatPunch = window.sPunch;
+
+  ctx.clearRect(0, 0, cw, ch);
+
+  const bgImg = document.getElementById('preview_bg_img');
+  const bgVid = document.getElementById('preview_bg_vid');
+  let sourceEl = null;
+  if (bgVid && bgVid.readyState >= 2 && bgVid.style.display !== 'none') sourceEl = bgVid;
+  else if (bgImg && bgImg.src && bgImg.complete && bgImg.style.display !== 'none') sourceEl = bgImg;
+
+  if (sourceEl) {
+    sourceEl.style.opacity = '0';
+    let zoomScale = 1.0, glitchShift = 0, cbAlpha = 0;
+    effectLayers.forEach(layer => {
+      let val = (layer.intensity ?? 50) / 100.0;
+      if (layer.name.includes('Zoom Jedag-Jedug') && isPreviewPlaying) zoomScale += (val * 0.38 * beatPunch);
+      if (layer.name.includes('Glitch Beat') && isPreviewPlaying && beatPunch > 0.25) glitchShift += (val * 22 * (beatPunch - 0.25));
+      if (layer.name.includes('Color Boost')) cbAlpha = val;
+    });
+
+    const srcW = sourceEl.videoWidth || sourceEl.naturalWidth || cw;
+    const srcH = sourceEl.videoHeight || sourceEl.naturalHeight || ch;
+    const targetRatio = cw / ch;
+    const srcRatio = srcW / srcH;
+    let sx = 0, sy = 0, sw = srcW, sh = srcH;
+    if (srcRatio > targetRatio) {
+      sw = srcH * targetRatio;
+      sx = (srcW - sw) / 2.0;
+    } else {
+      sh = srcW / targetRatio;
+      sy = (srcH - sh) / 2.0;
+    }
+
+    const dw = cw * zoomScale, dh = ch * zoomScale;
+    const dx = (cw - dw) / 2.0, dy = (ch - dh) / 2.0;
+
+    ctx.filter = cbAlpha > 0 ? `saturate(${100 + cbAlpha * 100}%) contrast(${100 + cbAlpha * 15}%)` : 'none';
+    ctx.drawImage(sourceEl, sx, sy, sw, sh, dx, dy, dw, dh);
+    ctx.filter = 'none';
+
+    if (glitchShift >= 1) {
+      let shift = Math.floor(glitchShift);
+      ctx.save();
+      ctx.globalAlpha = 0.45 * beatPunch;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.drawImage(sourceEl, sx, sy, sw, sh, dx - shift, dy, dw, dh);
+      ctx.drawImage(sourceEl, sx, sy, sw, sh, dx + shift, dy, dw, dh);
+      ctx.restore();
+    }
+  } else {
+    ctx.save();
+    ctx.fillStyle = '#3a5470';
+    ctx.font = '500 11px "DM Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('📐 Folder BG Shorts (9:16) Kosong', cw / 2, ch / 2 - 8);
+    ctx.font = '400 10px "DM Mono", monospace';
+    ctx.fillText('Upload dulu di Settings -> Asset Gallery', cw / 2, ch / 2 + 12);
+    ctx.restore();
+  }
+
+  function hexToRgbStr(hex) {
+    hex = (hex || '#ffb703').replace('#', '');
+    if (hex.length !== 6) return '255,183,3';
+    return `${parseInt(hex.slice(0,2),16)},${parseInt(hex.slice(2,4),16)},${parseInt(hex.slice(4,6),16)}`;
+  }
+
+  effectLayers.forEach(layer => {
+    let intens = (layer.intensity ?? 50) / 100.0;
+    const c1 = hexToRgbStr(layer.color1);
+    const c2 = hexToRgbStr(layer.color2);
+
+    if (layer.name.includes('Visualizer') && !layer.name.includes('Particle')) {
+      const cx = cw * ((layer.pos_x ?? 50) / 100.0);
+      const cy = ch * ((layer.pos_y ?? 82) / 100.0);
+      const numBars = Math.max(10, parseInt(layer.num_bars || 48));
+      const maxBarH = ch * 0.25 * ((layer.height_scale ?? 45) / 50.0);
+
+      if (!window['sBar_' + layer.id] || window['sBar_' + layer.id].length !== numBars) {
+        window['sBar_' + layer.id] = new Array(numBars).fill(0);
+      }
+      let barState = window['sBar_' + layer.id];
+
+      for (let i = 0; i < numBars; i++) {
+        let pseudoRand = Math.abs(Math.sin((i + 1) * 12.9898) * 43758.5453) % 1;
+        let sourceIdx = Math.min(63, Math.floor(pseudoRand * 55));
+        let rawVal = isPreviewPlaying ? (realtimeBars[sourceIdx] || 0) / 1.5 : 0;
+        let targetH = Math.pow(Math.min(1.0, rawVal), 2.3) * 0.85;
+        barState[i] = targetH > barState[i] ? (barState[i] * 0.25 + targetH * 0.75) : (barState[i] * 0.65 + targetH * 0.35);
+      }
+
+      if (layer.name.includes('Bar Bawah')) {
+        const totW = cw * ((layer.size ?? 75) / 100.0);
+        const startX = cx - totW / 2.0;
+        const slotW = totW / numBars;
+        const space = Math.min(layer.bar_gap ?? 3, Math.max(0, slotW - 1));
+        const barW = Math.max(1, (slotW - space) * ((layer.thickness ?? 35) / 100.0));
+        const offset = (slotW - barW) / 2.0;
+
+        for (let i = 0; i < numBars; i++) {
+          let h = Math.max(2, barState[i] * maxBarH * (1 + (isPreviewPlaying ? beatPunch * intens * 0.35 : 0)));
+          const px = startX + slotW * i + offset;
+          let grad = ctx.createLinearGradient(0, cy, 0, cy - h);
+          grad.addColorStop(0, `rgb(${c1})`); grad.addColorStop(1, `rgb(${c2})`);
+          ctx.fillStyle = layer.color_mode === 'Dynamic RGB Shift' ? `hsl(${((Date.now()/20)+(i/numBars)*360)%360},100%,50%)` : grad;
+          ctx.fillRect(px, cy - h, barW, h);
+        }
+      } else if (layer.name.includes('Radial Bar')) {
+        const baseR = Math.min(cw, ch) * 0.28 * ((layer.size ?? 65) / 100.0);
+        const pulseR = baseR + (isPreviewPlaying ? beatPunch * 10 * intens : 0);
+        const slotArc = (2 * Math.PI * pulseR) / numBars;
+        const barW = Math.max(1, (slotArc - Math.min(layer.bar_gap ?? 3, slotArc - 1)) * ((layer.thickness ?? 35) / 100.0));
+
+        ctx.save();
+        for (let i = 0; i < numBars; i++) {
+          let h = Math.max(2, barState[i] * (maxBarH * 0.65) * (1 + (isPreviewPlaying ? beatPunch * intens * 0.35 : 0)));
+          const ang = (i / numBars) * Math.PI * 2 - Math.PI / 2;
+          const x1 = cx + Math.cos(ang) * pulseR, y1 = cy + Math.sin(ang) * pulseR;
+          const x2 = cx + Math.cos(ang) * (pulseR + h), y2 = cy + Math.sin(ang) * (pulseR + h);
+          ctx.strokeStyle = layer.color_mode === 'Dynamic RGB Shift' ? `hsl(${((Date.now()/20)+(i/numBars)*360)%360},100%,50%)` : `rgb(${c2})`;
+          ctx.lineWidth = barW;
+          ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+        }
+        const innerR = Math.max(4, pulseR - 3);
+        if (layer.use_logo !== false && centerLogo.complete && centerLogo.naturalWidth > 0) {
+          ctx.save();
+          ctx.beginPath(); ctx.arc(cx, cy, innerR, 0, Math.PI * 2); ctx.clip();
+          ctx.drawImage(centerLogo, cx - innerR, cy - innerR, innerR * 2, innerR * 2);
+          ctx.restore();
+        }
+        ctx.strokeStyle = `rgb(${c1})`; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(cx, cy, innerR, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+      } else if (layer.name.includes('Waveform')) {
+        const totW = cw * ((layer.size ?? 75) / 100.0);
+        const startX = cx - totW / 2.0;
+        const slotW = totW / Math.max(1, numBars - 1);
+        ctx.save();
+        ctx.beginPath();
+        for (let i = 0; i < numBars; i++) {
+          let h = Math.max(2, barState[i] * maxBarH * (1 + (isPreviewPlaying ? beatPunch * intens * 0.35 : 0)));
+          const px = startX + slotW * i, py = cy - h;
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.strokeStyle = `rgb(${c2})`;
+        ctx.lineWidth = Math.max(1.5, ((layer.thickness ?? 35) / 100.0) * 8);
+        ctx.stroke();
+        ctx.restore();
+      }
+    } else if (layer.name.includes('Particle')) {
+      if (!window.sPartStates) window.sPartStates = {};
+      if (!window.sPartStates[layer.id]) window.sPartStates[layer.id] = [];
+      let pArray = window.sPartStates[layer.id];
+      const nowSec = Date.now() / 1000.0;
+      const targetCount = Math.max(10, parseInt(layer.part_count || 55));
+      const sizeScale = (layer.size ?? 50) / 50.0;
+      const flowSpeed = Math.max(0.15, (layer.flow_speed ?? 40) / 40.0);
+
+      while (pArray.length < targetCount) {
+        let a = Math.random() * Math.PI * 2;
+        pArray.push({
+          x: Math.random() * cw, y: Math.random() * ch, angle: a, targetAngle: a,
+          baseSpeed: 0.4 + Math.random() * 0.8, wobbleFreq: 0.5 + Math.random(), wobbleAmp: 0.3 + Math.random() * 0.5,
+          phase: Math.random() * Math.PI * 2, baseSize: (1.8 + Math.random() * 3.2) * sizeScale, ratio: Math.random()
+        });
+      }
+      if (pArray.length > targetCount) pArray.length = targetCount;
+
+      const rKey = 'sRedir_' + layer.id;
+      if (!window[rKey]) window[rKey] = 0;
+      if (isPreviewPlaying && beatPunch > 0.38 && (nowSec - window[rKey] > 0.18)) {
+        window[rKey] = nowSec;
+        pArray.forEach(p => {
+          if (Math.random() <= (0.3 + intens * 0.7)) p.targetAngle += (Math.random() - 0.5) * (0.4 + intens * 0.8) * Math.PI * 2;
+        });
+      }
+
+      ctx.save();
+      pArray.forEach(p => {
+        p.angle += (p.targetAngle - p.angle) * 0.12;
+        const dAng = p.angle + Math.sin(nowSec * p.wobbleFreq + p.phase) * p.wobbleAmp;
+        p.x += Math.cos(dAng) * p.baseSpeed * flowSpeed;
+        p.y += Math.sin(dAng) * p.baseSpeed * flowSpeed;
+        if (p.x < -10) p.x = cw + 8; else if (p.x > cw + 10) p.x = -8;
+        if (p.y < -10) p.y = ch + 8; else if (p.y > ch + 10) p.y = -8;
+
+        ctx.fillStyle = `rgba(${c2}, 0.8)`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, Math.max(1, p.baseSize * (1 + (isPreviewPlaying ? beatPunch * 0.25 : 0))), 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+  });
+
+  if (document.getElementById('bc-use-floating-card')?.checked && (sourceEl || isPreviewPlaying)) {
+    const mode = document.getElementById('bc-floating-card-mode')?.value || 'intro_5s';
+    let elapsed = (isPreviewPlaying && previewAudioElement) ? previewAudioElement.currentTime : 0;
+    let alpha = 1.0;
+    if (mode === 'intro_5s' && isPreviewPlaying) {
+      if (elapsed > 5.5) alpha = 0;
+      else if (elapsed < 0.7) alpha = elapsed / 0.7;
+      else if (elapsed > 4.5) alpha = Math.max(0, 1.0 - (elapsed - 4.5));
+    }
+    if (alpha > 0.02) {
+      const sel = document.getElementById('preview-audio-select');
+      let title = (sel && sel.selectedIndex > 0) ? sel.options[sel.selectedIndex].text : 'Shorts Track Preview';
+      title = title.replace(/^(?:🎵|⚠️|🎬)\s*/u, '').replace(/\[.*?\]|\(.*?\)/g, '').replace(/\.(mp3|wav|mp4)$/i, '').trim().replace(/^\d+[\.\)\-\s_]+/, '').trim() || 'Shorts Music';
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      const cardX = 16, cardY = 22, cardW = cw - 32, cardH = 42;
+      ctx.fillStyle = 'rgba(12, 18, 30, 0.58)';
+      ctx.beginPath(); ctx.roundRect(cardX, cardY, cardW, cardH, 12); ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)'; ctx.lineWidth = 1; ctx.stroke();
+
+      for (let b = 0; b < 3; b++) {
+        const bh = isPreviewPlaying ? (5 + beatPunch * 13 + Math.sin(Date.now()/120 + b)*2) : 6;
+        ctx.fillStyle = '#ffb703';
+        ctx.beginPath(); ctx.roundRect(cardX + 14 + b * 5.5, cardY + 30 - bh, 3, bh, 1.5); ctx.fill();
+      }
+      ctx.fillStyle = '#ffb703'; ctx.font = '500 8px "DM Mono", monospace';
+      ctx.fillText('NOW PLAYING', cardX + 36, cardY + 16);
+      ctx.fillStyle = '#ffffff'; ctx.font = '600 11px "Clash Display", sans-serif';
+      ctx.fillText(title.slice(0, 28), cardX + 36, cardY + 31);
+      ctx.restore();
+    }
+  }
+
+  requestAnimationFrame(drawShortsPreview);
+}
+
+// ────────────────────────────────────────────────────────
+//  PRESET SAVE / LOAD / IMPORT / EXPORT
+// ────────────────────────────────────────────────────────
+function getVisConfig() {
+  return {
+    use_floating_card: document.getElementById('bc-use-floating-card').checked,
+    floating_card_mode: document.getElementById('bc-floating-card-mode').value,
+    layers: effectLayers
+  };
+}
+
+function refreshVisPresetList() {
+  const sel = document.getElementById('vis-preset-load');
+  const keys = Object.keys(visPresets);
+  sel.innerHTML = '<option value="">-- Load Preset Tersimpan --</option>' + keys.map(k => `<option value="${k}">${k}</option>`).join('');
+}
+
+function saveVisPreset() {
+  const name = prompt('Nama Preset Efek Shorts/Factory:');
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim();
+  visPresets[trimmed] = getVisConfig();
+  localStorage.setItem('wp_presets', JSON.stringify(visPresets));
+  refreshVisPresetList();
+  fetch('/api/save_preset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [trimmed]: visPresets[trimmed] }) }).catch(() => {});
+}
+
+function loadVisPreset(name) {
+  if (!name || !visPresets[name]) return;
+  const p = visPresets[name];
+  if (p.use_floating_card !== undefined) document.getElementById('bc-use-floating-card').checked = p.use_floating_card;
+  if (p.floating_card_mode !== undefined) document.getElementById('bc-floating-card-mode').value = p.floating_card_mode;
+  effectLayers = p.layers || [];
+  renderEffectLayers();
+}
+
+function deleteVisPreset() {
+  const name = document.getElementById('vis-preset-load').value;
+  if (!name || !confirm(`Hapus preset "${name}"?`)) return;
+  delete visPresets[name];
+  localStorage.setItem('wp_presets', JSON.stringify(visPresets));
+  refreshVisPresetList();
+  fetch('/api/delete_preset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }).catch(() => {});
+}
+
+function exportVisPreset() {
+  const dl = document.createElement('a');
+  dl.setAttribute('href', 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(visPresets, null, 4)));
+  dl.setAttribute('download', 'presets_shorts.json');
+  dl.click();
+}
+
+function importVisPreset() {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json';
+  inp.onchange = e => {
+    const r = new FileReader();
+    r.onload = ev => {
+      try {
+        const d = JSON.parse(ev.target.result);
+        visPresets = { ...visPresets, ...d };
+        localStorage.setItem('wp_presets', JSON.stringify(visPresets));
+        refreshVisPresetList();
+      } catch(err) { alert('File JSON tidak valid'); }
+    };
+    r.readAsText(e.target.files[0]);
+  };
+  inp.click();
+}
+
+// ────────────────────────────────────────────────────────
+//  START BATCH SHORTS & MONITOR (LENGKAP METADATA & JADWAL)
+// ────────────────────────────────────────────────────────
+document.getElementById('bc-start').addEventListener('click', async () => {
+  const channelId = document.getElementById('bc-channel').value;
+  const batchCount = parseInt(document.getElementById('bc-count').value || '1');
+  const durationSec = parseInt(document.getElementById('bc-duration').value || '30');
+  const audioSource = document.getElementById('bc-audio-source').value;
+  const platforms = Array.from(document.querySelectorAll('.bc-platform:checked')).map(el => el.value);
+  const fbPageId = document.getElementById('bc-fb-page').value;
+  const msg = document.getElementById('bc-message');
+
+  const titleMode = document.getElementById('bc-title-mode').value;
+  const rawDesc = document.getElementById('bc-description').value || '';
+  const descVariants = rawDesc.split(/\n---\n/).map(s => s.trim()).filter(Boolean);
+  const generatedDescriptions = Array.from({ length: batchCount }, (_, i) => descVariants.length ? descVariants[i % descVariants.length] : rawDesc);
+  const tags = document.getElementById('bc-tags').value || 'shorts';
+  const privacy = document.getElementById('bc-privacy').value || 'public';
+  const startDate = document.getElementById('bc-start-date').value;
+  const intervalHours = parseFloat(document.getElementById('bc-interval-hours').value || '0');
+
+  updateSchedulePreview();
+
+  if (!channelId) { msg.textContent = '⚠️ Pilih channel dulu!'; return; }
+  if (!(galleryData.shorts_bg || []).length) {
+    msg.textContent = '❌ Folder BG Shorts (9:16) masih kosong! Upload dulu di Settings.';
+    return;
+  }
+  if (!platforms.length) { msg.textContent = '⚠️ Pilih minimal 1 platform!'; return; }
+
+  msg.textContent = '⏳ Mengirim batch Shorts beserta Jadwal & Metadata ke antrean...';
+  try {
+    const res = await fetch('/api/shorts/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channelId,
+        yt_id: channelId,
+        platforms,
+        batchCount,
+        durationSec,
+        bgSource: 'shorts_bg',
+        audioSource,
+        effects: effectLayers,
+        vis_preset: getVisConfig(),
+        fb_page_id: fbPageId, // <--- TAMBAHKAN INI DI SINI
+        // Metadata YouTube & Jadwal Publish
+        title_mode: titleMode,
+        generated_titles: plannedTitles,
+        description: rawDesc,
+        generated_descriptions: generatedDescriptions,
+        tags,
+        privacy,
+        start_date: startDate,
+        interval_hours: intervalHours,
+        generated_publish_dates: plannedDates
+      }),
+    });
+    const result = await res.json();
+    msg.textContent = result.success ? '✅ ' + result.data.message : '❌ ' + (result.error?.message || 'Gagal');
+    loadTaskMonitor();
+  } catch (e) {
+    msg.textContent = '❌ ' + e.message;
+  }
+});
+
+async function loadTaskMonitor() {
+  try {
+    const res = await fetch('/api/shorts/jobs');
+    const jobs = await res.json();
+    const wrap = document.getElementById('tm-list');
+    if (!jobs.length) {
+      wrap.innerHTML = '<p class="text-[#3a5470] text-xs text-center py-4 font-mono">Belum ada job Shorts.</p>';
+      return;
+    }
+    wrap.innerHTML = jobs.slice().reverse().map(job => {
+      const statusColor = { done: '#00e887', error: '#ff4d6d', partial: '#ffc94d', processing: '#00d4ff' }[job.status] || '#ffb703';
+      const pubTime = job.publish_date ? `<span class="text-[9px] font-mono text-[#ffb703]">📅 ${job.publish_date}</span>` : '';
+      return `
+        <div class="bg-[#111c2a] border border-[#162030] rounded-xl p-3">
+          <div class="flex items-center justify-between mb-1 gap-2">
+            <span class="text-xs font-bold text-white truncate">${job.title || job.id}</span>
+            <span class="text-[10px] font-mono font-bold shrink-0" style="color:${statusColor}">${job.status}</span>
+          </div>
+          <div class="w-full h-1.5 rounded-full bg-[#090d14] overflow-hidden mb-1">
+            <div class="h-full transition-all duration-300" style="width:${job.progress || 0}%; background:${statusColor}"></div>
+          </div>
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[10px] text-[#7a9ab8] font-mono truncate">${job.stage || ''}</p>
+            ${pubTime}
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {}
+}
+
+document.getElementById('tm-clear').addEventListener('click', async () => {
+  await fetch('/api/shorts/jobs/clear', { method: 'DELETE' });
+  loadTaskMonitor();
+});
+
+function pollSysStats() {
+  fetch('/api/get_dashboard_stats').then(r => r.json()).then(d => {
+    if (d.sys_cpu !== undefined) {
+      document.getElementById('sys-cpu').textContent = d.sys_cpu + '%';
+      document.getElementById('sys-ram').textContent = d.sys_ram_pct + '%';
+      document.getElementById('sys-ram-txt').textContent = d.sys_ram_text;
+    }
+  }).catch(() => {});
+}
+
+// INIT
+resetStartDateToNow();
+loadChannels();
+loadFbPagesDropdown(); // <--- TAMBAHKAN BARIS INI
+renderEffectLayers();
+fetch('/api/get_presets').then(r => r.json()).then(d => {
+  if (d && typeof d === 'object') { visPresets = { ...visPresets, ...d }; localStorage.setItem('wp_presets', JSON.stringify(visPresets)); }
+  refreshVisPresetList();
+}).catch(() => refreshVisPresetList());
+loadTaskMonitor();
+pollSysStats();
+setInterval(loadTaskMonitor, 3000);
+setInterval(pollSysStats, 3000);
+drawShortsPreview();
+</script>
+</body>
+</html>

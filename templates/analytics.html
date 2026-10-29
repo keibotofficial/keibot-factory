@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics & Monetisasi — KeiBot Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #05080d; color: #c8daea; }
+    </style>
+</head>
+<body class="min-h-screen font-sans p-6">
+    <div class="max-w-7xl mx-auto">
+
+        <!-- TOPBAR -->
+        <div class="flex flex-wrap justify-between items-center mb-6 pb-4 border-b border-gray-800 gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-white flex items-center gap-2">
+                    <span class="text-[#3b82f6]">📊</span> Channel Analytics, Monetisasi & Strategi
+                </h1>
+                <p class="text-xs text-gray-400 mt-1">Pantau estimasi pendapatan, syarat monetisasi, dan video terpopuler untuk menentukan strategi konten berikutnya</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <select id="ch-select" onchange="renderDashboard()" class="bg-[#0d1520] border border-gray-700 text-white text-xs font-bold rounded-xl px-4 py-2.5 outline-none focus:border-[#3b82f6]">
+                    <option value="ALL">🌐 SEMUA CHANNEL (23 Channel)</option>
+                </select>
+                <a href="/hub" class="px-4 py-2.5 text-xs font-bold rounded-xl bg-[#111722] hover:border-[#00e5ff] text-white border border-gray-700 transition">🏠 Kembali ke Hub</a>
+            </div>
+        </div>
+
+        <!-- 4 KARTU RINGKASAN UTAMA -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-[#0d1520] border border-gray-800 rounded-2xl p-5 border-t-2 border-t-[#00e5ff]">
+                <div class="text-[10px] font-mono text-gray-400 mb-1">TOTAL VIEWS</div>
+                <div id="st-views" class="text-2xl font-bold text-[#00e5ff]">0</div>
+                <div class="text-[11px] text-gray-500 mt-1">Akumulasi tayangan</div>
+            </div>
+            <div class="bg-[#0d1520] border border-gray-800 rounded-2xl p-5 border-t-2 border-t-[#a855f7]">
+                <div class="text-[10px] font-mono text-gray-400 mb-1">TOTAL SUBSCRIBERS</div>
+                <div id="st-subs" class="text-2xl font-bold text-[#a855f7]">0</div>
+                <div id="st-vids" class="text-[11px] text-gray-500 mt-1">0 total video</div>
+            </div>
+            <div class="bg-[#0d1520] border border-gray-800 rounded-2xl p-5 border-t-2 border-t-[#ffb703]">
+                <div class="text-[10px] font-mono text-gray-400 mb-1">EST. JAM TAYANG</div>
+                <div id="st-watch" class="text-2xl font-bold text-[#ffb703]">0 Jam</div>
+                <div class="text-[11px] text-gray-500 mt-1">Target Monetisasi: 4.000 Jam</div>
+            </div>
+            <div class="bg-[#0d1520] border border-gray-800 rounded-2xl p-5 border-t-2 border-t-[#10b981]">
+                <div class="text-[10px] font-mono text-gray-400 mb-1">ESTIMASI EARNING (RPM)</div>
+                <div id="st-earning" class="text-2xl font-bold text-[#10b981]">$0.00</div>
+                <div id="st-monet-count" class="text-[11px] text-gray-500 mt-1">0 channel siap monetisasi</div>
+            </div>
+        </div>
+
+        <!-- KOTAK KHUSUS SAAT PILIH 1 CHANNEL: PROGRESS MONETISASI & REKOMENDASI AI -->
+        <div id="single-ch-panel" class="hidden grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+            <div class="md:col-span-2 bg-[#0d1520] border border-gray-800 rounded-2xl p-5">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xs font-bold text-white tracking-wider">🎯 PROGRESS SYARAT MONETISASI YOUTUBE PARTNER</h3>
+                    <span id="mon-badge" class="px-3 py-1 rounded-full text-xs font-bold"></span>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between text-xs font-mono mb-1">
+                            <span>Subscribers (Syarat: 1.000 Subs)</span>
+                            <span id="bar-subs-txt" class="text-[#a855f7] font-bold">0%</span>
+                        </div>
+                        <div class="w-full h-2.5 bg-gray-800 rounded-full overflow-hidden">
+                            <div id="bar-subs" class="h-full bg-[#a855f7] transition-all duration-500" style="width:0%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs font-mono mb-1">
+                            <span>Estimasi Jam Tayang (Syarat: 4.000 Jam)</span>
+                            <span id="bar-watch-txt" class="text-[#00e5ff] font-bold">0%</span>
+                        </div>
+                        <div class="w-full h-2.5 bg-gray-800 rounded-full overflow-hidden">
+                            <div id="bar-watch" class="h-full bg-[#00e5ff] transition-all duration-500" style="width:0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-[#111c2a] border border-[#3b82f6]/40 rounded-2xl p-5 flex flex-col justify-between">
+                <div>
+                    <div class="text-xs font-bold text-[#3b82f6] mb-2">💡 REKOMENDASI LANGKAH SELANJUTNYA</div>
+                    <p id="ch-advice" class="text-xs text-gray-200 leading-relaxed"></p>
+                </div>
+                <div class="flex gap-2 mt-4 pt-3 border-t border-gray-800">
+                    <a href="/factory" class="flex-1 text-center py-2 rounded-lg bg-[#00e5ff]/15 text-[#00e5ff] text-xs font-bold hover:bg-[#00e5ff] hover:text-black transition">🏭 Buka Factory</a>
+                    <a href="/shorts" class="flex-1 text-center py-2 rounded-lg bg-[#ffb703]/15 text-[#ffb703] text-xs font-bold hover:bg-[#ffb703] hover:text-black transition">⚡ Buat Shorts</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- GRAFIK PERBANDINGAN & TOP VIDEO POPULER -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <div class="lg:col-span-2 bg-[#0d1520] border border-gray-800 rounded-2xl p-5">
+                <h3 class="text-xs font-bold text-white tracking-wider mb-4">📈 GRAFIK PERFORMA CHANNEL</h3>
+                <div class="h-72">
+                    <canvas id="mainChart"></canvas>
+                </div>
+            </div>
+
+            <!-- TOP VIDEO PALING POPULER -->
+            <div class="bg-[#0d1520] border border-gray-800 rounded-2xl p-5">
+                <h3 class="text-xs font-bold text-white tracking-wider mb-1">🔥 VIDEO PALING POPULER (TOP WINNERS)</h3>
+                <p class="text-[11px] text-gray-500 mb-4">Gunakan topik/lagu dari video ini untuk batch selanjutnya</p>
+                <div id="top-videos-list" class="space-y-3 max-h-72 overflow-y-auto pr-1">
+                    <div class="text-center py-8 text-gray-500 text-xs font-mono">Memuat data video...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TABEL STATUS MONETISASI SELURUH CHANNEL -->
+        <div class="bg-[#0d1520] border border-gray-800 rounded-2xl p-5">
+            <h3 class="text-xs font-bold text-white tracking-wider mb-4">📋 RINGKASAN MONETISASI & REKOMENDASI PER CHANNEL</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                        <tr class="border-b border-gray-800 text-gray-400 font-mono text-[10px]">
+                            <th class="pb-3">CHANNEL</th>
+                            <th class="pb-3">SUBSCRIBERS</th>
+                            <th class="pb-3">EST. JAM TAYANG</th>
+                            <th class="pb-3">TOTAL VIEWS</th>
+                            <th class="pb-3">EST. EARNING</th>
+                            <th class="pb-3">STATUS MONETISASI</th>
+                            <th class="pb-3">SARAN TINDAKAN</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ch-table-body" class="divide-y divide-gray-800/60"></tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let allChannels = [];
+        let chartObj = null;
+
+        fetch('/api/get_deep_analytics').then(r => r.json()).then(data => {
+            allChannels = data;
+            const sel = document.getElementById('ch-select');
+            sel.innerHTML = `<option value="ALL">🌐 SEMUA CHANNEL (${data.length} Channel)</option>` +
+                data.map(c => `<option value="${c.yt_id}">${c.name}</option>`).join('');
+            renderDashboard();
+        });
+
+        function renderDashboard() {
+            const filter = document.getElementById('ch-select').value;
+            const filtered = filter === 'ALL' ? allChannels : allChannels.filter(c => c.yt_id === filter);
+
+            let totViews = 0, totSubs = 0, totWatch = 0, totEarn = 0, totVids = 0, monetCount = 0;
+            let combinedVideos = [];
+
+            filtered.forEach(c => {
+                totViews += c.views;
+                totSubs += c.subs;
+                totWatch += c.watch_hours;
+                totEarn += c.earning_usd;
+                totVids += c.videos;
+                if (c.is_monetized) monetCount++;
+                (c.top_videos || []).forEach(v => combinedVideos.push({ ...v, channel: c.name }));
+            });
+
+            document.getElementById('st-views').textContent = totViews.toLocaleString();
+            document.getElementById('st-subs').textContent = totSubs.toLocaleString();
+            document.getElementById('st-vids').textContent = `${totVids.toLocaleString()} video diupload`;
+            document.getElementById('st-watch').textContent = Math.round(totWatch).toLocaleString() + ' Jam';
+            document.getElementById('st-earning').textContent = '$' + totEarn.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('st-monet-count').textContent = `${monetCount} dari ${filtered.length} channel memenuhi syarat`;
+
+            // Panel 1 Channel
+            const singlePanel = document.getElementById('single-ch-panel');
+            if (filter !== 'ALL' && filtered.length === 1) {
+                const c = filtered[0];
+                singlePanel.classList.remove('hidden');
+                const pS = Math.min(100, Math.round((c.subs / 1000) * 100));
+                const pW = Math.min(100, Math.round((c.watch_hours / 4000) * 100));
+                document.getElementById('bar-subs').style.width = pS + '%';
+                document.getElementById('bar-subs-txt').textContent = `${c.subs.toLocaleString()} / 1.000 (${pS}%)`;
+                document.getElementById('bar-watch').style.width = pW + '%';
+                document.getElementById('bar-watch-txt').textContent = `${Math.round(c.watch_hours).toLocaleString()} / 4.000 (${pW}%)`;
+                
+                const badge = document.getElementById('mon-badge');
+                if (c.is_monetized) {
+                    badge.textContent = '🎉 SIAP MONETISASI';
+                    badge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/40';
+                } else {
+                    badge.textContent = '⏳ MENGEJAR TARGET';
+                    badge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/40';
+                }
+                document.getElementById('ch-advice').textContent = c.advice;
+            } else {
+                singlePanel.classList.add('hidden');
+            }
+
+            // Render Top Videos
+            combinedVideos.sort((a, b) => b.views - a.views);
+            const topBox = document.getElementById('top-videos-list');
+            if (!combinedVideos.length) {
+                topBox.innerHTML = `<div class="text-center py-8 text-gray-500 text-xs">Belum ada data video publik.</div>`;
+            } else {
+                topBox.innerHTML = combinedVideos.slice(0, 8).map((v, i) => `
+                    <a href="https://youtu.be/${v.id}" target="_blank" class="flex items-center gap-3 p-2.5 rounded-xl bg-[#111c2a] hover:bg-[#162436] border border-gray-800 transition block">
+                        <div class="w-6 h-6 rounded-md bg-[#3b82f6]/20 text-[#3b82f6] font-mono text-xs font-bold grid place-items-center flex-shrink-0">#${i+1}</div>
+                        <div class="min-w-0 flex-1">
+                            <div class="text-xs font-bold text-white truncate">${v.title}</div>
+                            <div class="text-[10px] text-gray-400 font-mono">📺 ${v.channel} · 👁 ${v.views.toLocaleString()} views · 👍 ${v.likes}</div>
+                        </div>
+                    </a>
+                `).join('');
+            }
+
+            // Render Tabel Semua Channel
+            document.getElementById('ch-table-body').innerHTML = filtered.map(c => {
+                const pS = Math.min(100, Math.round((c.subs / 1000) * 100));
+                const pW = Math.min(100, Math.round((c.watch_hours / 4000) * 100));
+                return `
+                <tr class="hover:bg-[#111c2a]/60 transition cursor-pointer" onclick="document.getElementById('ch-select').value='${c.yt_id}'; renderDashboard();">
+                    <td class="py-3 font-bold text-white">${c.name}</td>
+                    <td class="py-3 font-mono text-[#a855f7]">${c.subs.toLocaleString()} <span class="text-gray-500 text-[10px]">(${pS}%)</span></td>
+                    <td class="py-3 font-mono text-[#ffb703]">${Math.round(c.watch_hours).toLocaleString()}j <span class="text-gray-500 text-[10px]">(${pW}%)</span></td>
+                    <td class="py-3 font-mono text-[#00e5ff]">${c.views.toLocaleString()}</td>
+                    <td class="py-3 font-mono text-[#10b981] font-bold">$${c.earning_usd.toFixed(2)}</td>
+                    <td class="py-3">
+                        ${c.is_monetized 
+                            ? `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#10b981]/15 text-[#10b981]">✅ Monetized</span>` 
+                            : `<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-gray-800 text-gray-400">⏳ ${Math.round((pS+pW)/2)}% Target</span>`}
+                    </td>
+                    <td class="py-3 text-[11px] text-gray-300 max-w-xs truncate" title="${c.advice}">${c.advice}</td>
+                </tr>`;
+            }).join('');
+
+            // Render Chart
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            if (chartObj) chartObj.destroy();
+            chartObj = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: filtered.map(c => c.name),
+                    datasets: [
+                        { label: 'Views', data: filtered.map(c => c.views), backgroundColor: '#00e5ff', borderRadius: 6 },
+                        { label: 'Subscribers', data: filtered.map(c => c.subs), backgroundColor: '#a855f7', borderRadius: 6 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, grid: { color: '#162030' } }, x: { grid: { display: false } } }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

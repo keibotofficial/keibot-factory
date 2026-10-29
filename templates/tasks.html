@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Task Monitor — KeiBot Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #05080d; color: #c8daea; }
+        .tab-btn.active {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border-color: #10b981;
+            box-shadow: 0 0 14px rgba(16, 185, 129, 0.22);
+        }
+        .ch-header {
+            background: linear-gradient(135deg, #111c2a, rgba(30, 48, 72, 0.55));
+            border-left: 3px solid #00e5ff;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .ch-header:hover { filter: brightness(1.12); }
+        .chevron { display: inline-block; transition: transform 0.2s; }
+        .collapsed .chevron { transform: rotate(-90deg); }
+        .q-waiting {
+            border-color: rgba(255, 201, 77, 0.45) !important;
+            background: linear-gradient(90deg, rgba(255, 201, 77, 0.08), #111c2a) !important;
+        }
+    </style>
+</head>
+<body class="min-h-screen font-sans p-6">
+    <div class="max-w-6xl mx-auto">
+        
+        <!-- TOPBAR -->
+        <div class="flex flex-wrap justify-between items-center mb-6 pb-4 border-b border-gray-800 gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-white flex items-center gap-2">
+                    <span class="text-[#10b981]">◈</span> Global Task Monitor
+                </h1>
+                <p class="text-xs text-gray-400 mt-1">Pantau seluruh antrean render & jadwal upload per channel dari semua modul</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2.5">
+                <button onclick="toggleAllGroups(false)" class="px-3 py-2 text-xs font-bold rounded-lg bg-[#0d1520] hover:bg-gray-800 text-gray-300 border border-gray-800 transition">📂 Buka Semua</button>
+                <button onclick="toggleAllGroups(true)" class="px-3 py-2 text-xs font-bold rounded-lg bg-[#0d1520] hover:bg-gray-800 text-gray-300 border border-gray-800 transition">📁 Tutup Semua</button>
+                <button onclick="recoverFailed()" class="px-3 py-2 text-xs font-bold rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 transition">♻️ Pulihkan Stuck</button>
+                <button onclick="clearHistory()" class="px-3 py-2 text-xs font-bold rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 transition">🧹 Bersihkan Riwayat</button>
+                <a href="/hub" class="px-4 py-2 text-xs font-bold rounded-lg bg-[#111722] hover:border-[#00e5ff] text-white border border-gray-700 transition flex items-center gap-2">🏠 Kembali ke Hub</a>
+            </div>
+        </div>
+
+        <!-- TAB FILTER MODUL -->
+        <div class="flex flex-wrap gap-3 mb-6">
+            <button onclick="setFilter('all', this)" class="tab-btn active px-4 py-2.5 rounded-xl border border-gray-800 bg-[#0d1520] text-xs font-bold transition flex items-center gap-2">
+                🌐 Semua Modul <span id="cnt-all" class="px-2 py-0.5 rounded-full bg-gray-800 text-[10px]">0</span>
+            </button>
+            <button onclick="setFilter('factory', this)" class="tab-btn px-4 py-2.5 rounded-xl border border-gray-800 bg-[#0d1520] text-xs font-bold transition flex items-center gap-2">
+                🏭 Factory <span id="cnt-factory" class="px-2 py-0.5 rounded-full bg-gray-800 text-[#00e5ff] text-[10px]">0</span>
+            </button>
+            <button onclick="setFilter('shorts', this)" class="tab-btn px-4 py-2.5 rounded-xl border border-gray-800 bg-[#0d1520] text-xs font-bold transition flex items-center gap-2">
+                ⚡ Shorts <span id="cnt-shorts" class="px-2 py-0.5 rounded-full bg-gray-800 text-[#ffb703] text-[10px]">0</span>
+            </button>
+            <button onclick="setFilter('clipper', this)" class="tab-btn px-4 py-2.5 rounded-xl border border-gray-800 bg-[#0d1520] text-xs font-bold transition flex items-center gap-2">
+                ✂️ Clipper <span id="cnt-clipper" class="px-2 py-0.5 rounded-full bg-gray-800 text-[#a855f7] text-[10px]">0</span>
+            </button>
+        </div>
+
+        <!-- 1. ANTREAN AKTIF (DIKELOMPOKKAN PER CHANNEL) -->
+        <div class="bg-[#0d1520] border border-gray-800 rounded-2xl p-5 mb-6">
+            <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-800">
+                <h2 class="text-sm font-bold text-white tracking-wider">⚡ ANTREAN SEDANG BERJALAN & MENUNGGU GILIRAN</h2>
+                <span id="active-label" class="text-xs px-3 py-1 rounded-full bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/30 font-mono">0 aktif</span>
+            </div>
+            <div id="active-list" class="space-y-3">
+                <div class="text-center py-8 text-gray-500 text-xs font-mono">Memuat antrean...</div>
+            </div>
+        </div>
+
+        <!-- 2. RIWAYAT SELESAI (DIKELOMPOKKAN PER CHANNEL + PAGINATION) -->
+        <div class="bg-[#0d1520] border border-gray-800 rounded-2xl p-5">
+            <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-800">
+                <h2 class="text-sm font-bold text-white tracking-wider">🗂 RIWAYAT SELESAI / GAGAL (PER CHANNEL)</h2>
+                <span id="hist-label" class="text-xs text-gray-400 font-mono">0 riwayat</span>
+            </div>
+            <div id="hist-list" class="space-y-3">
+                <div class="text-center py-8 text-gray-500 text-xs font-mono">Memuat riwayat...</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let currentFilter = 'all';
+        let rawData = { active: [], history: [], ch_order: [], counts: {} };
+        let qCollapsed = {}; // State buka/tutup antrean per channel
+        let hCollapsed = {}; // State buka/tutup history per channel
+        let hPage = {};      // State halaman pagination history per channel
+
+        function setFilter(mod, btn) {
+            currentFilter = mod;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderView();
+        }
+
+        function toggleQGroup(key) {
+            qCollapsed[key] = !qCollapsed[key];
+            renderView();
+        }
+
+        function toggleHGroup(key) {
+            hCollapsed[key] = !hCollapsed[key];
+            renderView();
+        }
+
+        function setHistPage(key, page) {
+            hPage[key] = page;
+            renderView();
+        }
+
+        function toggleAllGroups(collapseState) {
+            Object.keys(qCollapsed).forEach(k => qCollapsed[k] = collapseState);
+            Object.keys(hCollapsed).forEach(k => hCollapsed[k] = collapseState);
+            // Set juga untuk semua grup yang ada di data saat ini
+            (rawData.active || []).forEach(t => qCollapsed[t.yt_id || t.channel] = collapseState);
+            (rawData.history || []).forEach(t => hCollapsed[t.yt_id || t.channel] = collapseState);
+            renderView();
+        }
+
+        function badgeModule(mod) {
+            if (mod === 'factory') return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-[#00e5ff]/10 text-[#00e5ff] border border-[#00e5ff]/30 flex-shrink-0">🏭 FACTORY</span>`;
+            if (mod === 'shorts') return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-[#ffb703]/10 text-[#ffb703] border border-[#ffb703]/30 flex-shrink-0">⚡ SHORTS</span>`;
+            return `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-[#a855f7]/10 text-[#a855f7] border border-[#a855f7]/30 flex-shrink-0">✂️ CLIPPER</span>`;
+        }
+
+        // 🔥 BARU: Fungsi untuk mencetak ikon platform destinasi upload
+        function badgePlatforms(platforms) {
+            if (!platforms || !Array.isArray(platforms) || platforms.length === 0) return '';
+            let html = '<div class="flex gap-1.5 flex-shrink-0">';
+            if (platforms.includes('youtube')) html += `<span title="YouTube Shorts" class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500/10 text-red-500 border border-red-500/20">▶ YT</span>`;
+            if (platforms.includes('tiktok')) html += `<span title="TikTok" class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#00f2fe]/10 text-[#00f2fe] border border-[#00f2fe]/20">♪ TT</span>`;
+            if (platforms.includes('facebook')) html += `<span title="Facebook Reels" class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/10 text-blue-500 border border-blue-500/20">f FB</span>`;
+            html += '</div>';
+            return html;
+        }
+
+        function groupByChannel(items) {
+            const groups = {};
+            items.forEach(t => {
+                const key = t.yt_id || t.channel || '__unknown__';
+                if (!groups[key]) {
+                    groups[key] = { name: t.channel || 'Tanpa Channel', yt_id: t.yt_id || '', items: [] };
+                }
+                groups[key].items.push(t);
+            });
+            const order = rawData.ch_order || [];
+            const sortedKeys = Object.keys(groups).sort((a, b) => {
+                const idxA = order.indexOf(a);
+                const idxB = order.indexOf(b);
+                if (idxA === -1 && idxB === -1) return a.localeCompare(b);
+                if (idxA === -1) return 1;
+                if (idxB === -1) return -1;
+                return idxA - idxB;
+            });
+            return sortedKeys.map(k => ({ key: k, ...groups[k] }));
+        }
+
+        function fetchTasks() {
+            fetch('/api/unified_tasks').then(r => r.json()).then(d => {
+                rawData = d;
+                document.getElementById('cnt-all').textContent = d.counts?.all || 0;
+                document.getElementById('cnt-factory').textContent = d.counts?.factory || 0;
+                document.getElementById('cnt-shorts').textContent = d.counts?.shorts || 0;
+                document.getElementById('cnt-clipper').textContent = d.counts?.clipper || 0;
+                renderView();
+            }).catch(() => {});
+        }
+
+        function renderView() {
+            const act = (rawData.active || []).filter(x => currentFilter === 'all' || x.module === currentFilter);
+            const hst = (rawData.history || []).filter(x => currentFilter === 'all' || x.module === currentFilter);
+
+            document.getElementById('active-label').textContent = `${act.length} aktif`;
+            document.getElementById('hist-label').textContent = `${hst.length} riwayat`;
+
+            // 1. RENDER ANTREAN AKTIF PER CHANNEL
+            const actBox = document.getElementById('active-list');
+            if (!act.length) {
+                actBox.innerHTML = `<div class="text-center py-8 text-gray-500 text-xs font-mono">Tidak ada task aktif untuk filter ini.</div>`;
+            } else {
+                const actGroups = groupByChannel(act);
+                actBox.innerHTML = actGroups.map(g => {
+                    const isCol = !!qCollapsed[g.key];
+                    const rowsHtml = isCol ? '' : `<div class="space-y-2 mt-2 pl-2 border-l border-gray-800/80">` + g.items.map(t => {
+                        const st = String(t.status || '');
+                        const isWaiting = st.includes('Queue') || st.includes('Menunggu') || st.includes('Cooldown') || st.includes('Ditunda') || st.includes('Dijadwalkan');
+                        return `
+                        <div class="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-[#111c2a] border border-gray-800 ${isWaiting ? 'q-waiting' : ''}">
+                            <div class="flex items-center gap-3 min-w-0 flex-1">
+                                <span class="text-base">${isWaiting ? '⏳' : '⚙️'}</span>
+                                ${badgeModule(t.module)}${badgePlatforms(t.platforms)} <!-- 🔥 PANGGIL IKON DI SINI -->
+                                <div class="min-w-0 flex-1">
+                                    <div class="text-xs font-bold text-white truncate">${t.title}</div>
+                                    <div class="text-[11px] text-gray-400 font-mono">🕒 ${t.time}${t.thumb_status ? `· 🖼️ ${t.thumb_status}` : ''}</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2.5">
+                                <span class="px-3 py-1 rounded-full text-[11px] font-mono font-bold ${isWaiting ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30' : 'bg-[#00e5ff]/15 text-[#00e5ff] border border-[#00e5ff]/30'}">${t.status}</span>
+                                ${t.can_stop ? `<button onclick="stopTask('${t.id}')" class="px-3 py-1 rounded-lg text-xs font-bold bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500 hover:text-white transition">Stop</button>` : ''}
+                            </div>
+                        </div>`;
+                    }).join('') + `</div>`;
+
+                    return `
+                    <div>
+                        <div onclick="toggleQGroup('${g.key}')" class="ch-header ${isCol ? 'collapsed' : ''} flex items-center justify-between px-4 py-2.5 rounded-xl border border-gray-800 cursor-pointer">
+                            <div class="flex items-center gap-2.5 font-bold text-xs text-white">
+                                <span class="chevron text-[10px] text-[#00e5ff]">▼</span>
+                                <span>📺 ${g.name}</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                ${g.yt_id ? `<button onclick="event.stopPropagation(); stopChannel('${g.yt_id}', '${g.name.replace(/'/g, "\\'")}')" class="px-2.5 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500 hover:text-white transition">🛑 Stop Channel</button>` : ''}
+                                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#00e5ff]/15 text-[#00e5ff] border border-[#00e5ff]/30">${g.items.length} Aktif</span>
+                            </div>
+                        </div>
+                        ${rowsHtml}
+                    </div>`;
+                }).join('');
+            }
+
+            // 2. RENDER RIWAYAT PER CHANNEL (DENGAN PAGINATION 50 ITEM PER HALAMAN)
+            const hstBox = document.getElementById('hist-list');
+            if (!hst.length) {
+                hstBox.innerHTML = `<div class="text-center py-8 text-gray-500 text-xs font-mono">Belum ada riwayat untuk filter ini.</div>`;
+            } else {
+                const hstGroups = groupByChannel(hst);
+                hstBox.innerHTML = hstGroups.map(g => {
+                    const isCol = !!hCollapsed[g.key];
+                    const totalItems = g.items.length;
+                    const limit = 50;
+                    const totalPages = Math.ceil(totalItems / limit);
+                    let currPage = hPage[g.key] || 1;
+                    if (currPage > totalPages) currPage = totalPages;
+                    if (currPage < 1) currPage = 1;
+
+                    const startIdx = (currPage - 1) * limit;
+                    const pageItems = g.items.slice(startIdx, startIdx + limit);
+
+                    let rowsHtml = '';
+                    if (!isCol) {
+                        rowsHtml = `<div class="space-y-1.5 mt-2 pl-2 border-l border-gray-800/60">` + pageItems.map(t => {
+                            const isFail = String(t.status).includes('❌') || String(t.status).toLowerCase().includes('gagal');
+                            return `
+                            <div class="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-[#090d14] border border-gray-800/70 hover:border-gray-700">
+                                <div class="flex items-center gap-3 min-w-0 flex-1">
+                                    <span class="font-mono text-[10px] text-gray-500">#${t.id}</span>
+                                    ${badgeModule(t.module)}${badgePlatforms(t.platforms)} <!-- 🔥 PANGGIL IKON DI SINI -->
+                                    <div class="min-w-0 flex-1">
+                                        <div class="text-xs font-bold text-gray-200 truncate">${t.title}</div>
+                                        <div class="text-[10px] text-gray-500 font-mono">
+                                            ${t.info ? `<span class="text-[#10b981]">${t.info}</span>` : ''}
+                                            ${t.thumb_status ? ` · 🖼️ ${t.thumb_status}` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-xs font-bold ${isFail ? 'text-red-400' : 'text-gray-300'}">${t.status}</div>
+                            </div>`;
+                        }).join('');
+
+                        if (totalPages > 1) {
+                            let btns = '';
+                            for (let p = 1; p <= totalPages; p++) {
+                                btns += `<button onclick="setHistPage('${g.key}', ${p})" class="px-2.5 py-1 rounded text-[11px] font-mono ${p === currPage ? 'bg-[#00e5ff]/20 text-[#00e5ff] border border-[#00e5ff]' : 'bg-gray-900 text-gray-400 border border-gray-800'}">${p}</button>`;
+                            }
+                            rowsHtml += `<div class="flex justify-center gap-1.5 pt-2">${btns}</div>`;
+                        }
+                        rowsHtml += `</div>`;
+                    }
+
+                    return `
+                    <div>
+                        <div onclick="toggleHGroup('${g.key}')" class="ch-header ${isCol ? 'collapsed' : ''} flex items-center justify-between px-4 py-2.5 rounded-xl border border-gray-800 cursor-pointer">
+                            <div class="flex items-center gap-2.5 font-bold text-xs text-white">
+                                <span class="chevron text-[10px] text-[#00e5ff]">▼</span>
+                                <span>🗂 ${g.name}</span>
+                            </div>
+                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#00e5ff]/15 text-[#00e5ff] border border-[#00e5ff]/30">${totalItems} Total</span>
+                        </div>
+                        ${rowsHtml}
+                    </div>`;
+                }).join('');
+            }
+        }
+
+        function stopTask(id) {
+            if (!confirm('Hentikan paksa task ini?')) return;
+            fetch('/api/stop_task/' + id, { method: 'POST' }).then(() => fetchTasks());
+        }
+        function stopChannel(yt_id, name) {
+            if (!confirm(`Hentikan seluruh antrean aktif untuk channel "${name}"?`)) return;
+            fetch('/api/stop_channel/' + yt_id, { method: 'POST' }).then(() => fetchTasks());
+        }
+        function recoverFailed() {
+            if (!confirm('Pulihkan task Factory yang stuck ke antrean?')) return;
+            fetch('/api/recover_failed_tasks', { method: 'POST' }).then(() => fetchTasks());
+        }
+        function clearHistory() {
+            if (!confirm('Bersihkan seluruh riwayat task?')) return;
+            fetch('/api/clear_history', { method: 'POST' }).then(() => fetchTasks());
+        }
+
+        fetchTasks();
+        setInterval(fetchTasks, 2500);
+    </script>
+</body>
+</html>

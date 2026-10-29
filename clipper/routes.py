@@ -5,10 +5,11 @@ import time
 import glob
 import shutil
 import subprocess
+from core.job_state import terminal
 from flask import Blueprint, request, jsonify, Response, send_from_directory
 from werkzeug.utils import secure_filename
 from .ytdlp_service import get_metadata
-from .queue_worker import read_db, write_db
+from .queue_worker import read_db, write_db, update_db
 
 # Inisialisasi Blueprint
 clipper_bp = Blueprint('clipper', __name__)
@@ -39,23 +40,27 @@ def start_clip():
         "lyricStyle": data.get('lyricStyle', 'none'),
         "customFont": data.get('customFont', ''),
         "useVisualizer": data.get('useVisualizer', False),
+        "visParams": data.get('visParams', {}), # <-- TAMBAHKAN BARIS INI
         "bgmFile": data.get('bgmFile', 'none'),
         "audioMode": data.get('audioMode', 'bgm'),
-        "outputDest": data.get('outputDest', 'local'),
+        "outputDest": data.get('outputDest', 'youtube'),
         "assetChannelId": data.get('assetChannelId', ''),
-        "targetChannelId": data.get('targetChannelId', '')
+        "targetChannelId": data.get('targetChannelId', ''),
+        "fb_page_id": data.get('fbPageId', '')
     }
 
     if not url:
         return jsonify({"success": False, "error": {"message": "URL tidak boleh kosong."}})
 
-    base_job_id = f"{int(time.time())}"
-    jobs = read_db()
+    base_job_id = uuid.uuid4().hex
+    jobs = []
     
     for i in range(batch_count):
         job_id = f"{base_job_id}_{i+1}"
         job_data = {
             "id": job_id,
+            "yt_id": options["targetChannelId"],                                  # <-- TAMBAHKAN INI
+            "title": f"Clip Auto-Viral #{i+1} ({options['outputDest'].upper()})", # <-- TAMBAHKAN INI
             "url": url,
             "status": "queued",
             "progress": 0,
@@ -69,7 +74,7 @@ def start_clip():
         }
         jobs.append(job_data)
         
-    write_db(jobs)
+    update_db(lambda current: current.extend(jobs))
 
     return jsonify({
         "success": True, 
@@ -97,7 +102,7 @@ def stream_status(job_id):
                 last_status = job['status']
                 last_progress = job['progress']
             
-            if job['status'] in ['done', 'error']:
+            if terminal(job):
                 break
             time.sleep(1.5)
             
@@ -121,7 +126,7 @@ def get_all_jobs():
 
 @clipper_bp.route('/jobs/clear', methods=['DELETE'])
 def clear_jobs_history():
-    write_db([]) 
+    update_db(lambda jobs: [job for job in jobs if not terminal(job)]) 
     return jsonify({"success": True, "message": "Riwayat antrean berhasil dibersihkan."})
 
 @clipper_bp.route('/gallery', methods=['GET'])
